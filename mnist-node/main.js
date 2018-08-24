@@ -29,9 +29,12 @@ async function run(epochs, batchSize, modelSavePath) {
   const {images: trainImages, labels: trainLabels} = data.getTrainData();
   model.summary();
 
+  let currentEpoch;
   let progressBar;
   let epochBeginTime;
   let millisPerStep;
+  let lossOrMetricTags;
+  let lossOrMetricNames;
   const validationSplit = 0.15;
   const numTrainExamplesPerEpoch =
       trainImages.shape[0] * (1 - validationSplit);
@@ -43,17 +46,43 @@ async function run(epochs, batchSize, modelSavePath) {
     validationSplit,
     callbacks: {
       onEpochBegin: async (epoch) => {
-        progressBar = new ProgressBar(
-            ':bar: :eta', {total: numTrainBatchesPerEpoch, head: `>`});
-        console.log(`Epoch ${epoch + 1} / ${epochs}`);
+        currentEpoch = epoch;
         epochBeginTime = tf.util.now();
       },
       onBatchEnd: async (batch, logs) => {
+        if (batch === 0) {
+
+          console.log(`Epoch ${currentEpoch + 1} / ${epochs}`);
+          lossOrMetricTags = [];
+          lossOrMetricNames = [];
+          for (const key of Object.keys(logs)) {
+            if (key !== 'batch' && key !== 'size') {
+              lossOrMetricTags.push(`${key}Tag`);
+              lossOrMetricNames.push(`${key}`);
+            }
+          }
+          let progressBarSpec = ':bar: eta=:eta ';
+          for (let i = 0; i < lossOrMetricTags.length; ++i) {
+            progressBarSpec +=
+                `:${lossOrMetricTags[i]}=:${lossOrMetricNames[i]}`;
+            if (i < lossOrMetricTags.length - 1) {
+              progressBarSpec += ' ';
+            }
+          }
+          progressBar = new ProgressBar(
+              progressBarSpec, {total: numTrainBatchesPerEpoch, head: `>`});
+        }
         if (batch === numTrainBatchesPerEpoch - 1) {
           millisPerStep =
               (tf.util.now() - epochBeginTime) / numTrainExamplesPerEpoch;
         }
-        progressBar.tick();
+        const tickData = {};
+        for (let i = 0; i < lossOrMetricNames.length; ++i) {
+          tickData[lossOrMetricTags[i]] = lossOrMetricNames[i];
+          tickData[lossOrMetricNames[i]] =
+              logs[lossOrMetricNames[i]].toFixed(2);
+        }
+        progressBar.tick(tickData);
         await tf.nextFrame();
       },
       onEpochEnd: async (epoch, logs) => {
@@ -79,7 +108,7 @@ async function run(epochs, batchSize, modelSavePath) {
   if (modelSavePath != null) {
     await model.save(`file://${modelSavePath}`);
     console.log(`Saved model to path: ${modelSavePath}`);
-  }  
+  }
 }
 
 const parser = new argparse.ArgumentParser({
