@@ -16,6 +16,7 @@
  */
 
 import * as tf from '@tensorflow/tfjs';
+import * as speechCommands from '@tensorflow-models/speech-commands';
 
 import {ControllerDataset} from './controller_dataset';
 import * as ui from './ui';
@@ -127,31 +128,61 @@ let isPredicting = false;
 
 async function predict() {
   ui.isPredicting();
-  while (isPredicting) {
-    const predictedClass = tf.tidy(() => {
-      // Capture the frame from the webcam.
-      const img = webcam.capture();
+  // while (isPredicting) {
 
-      // Make a prediction through mobilenet, getting the internal activation of
-      // the mobilenet model.
-      const activation = mobilenet.predict(img);
-
-      // Make a prediction through our newly-trained model using the activation
-      // from mobilenet as input.
-      const predictions = model.predict(activation);
-
-      // Returns the index with the maximum probability. This number corresponds
-      // to the class the model thinks is the most probable given the input.
-      return predictions.as1D().argMax();
+  console.log(`speechCfommands version: ${speechCommands.version}`);  // DEBUG
+  const recognizer = speechCommands.create('BROWSER_FFT');
+  console.log(recognizer);
+  await recognizer.ensureModelLoaded();
+  const words = recognizer.wordLabels();
+  console.log('words:', words);  // DEBUG
+  recognizer.startStreaming(result => {
+    let maxIndex = -1;
+    let maxScore = -Infinity;
+    words.forEach((word, i) => {
+      if (word === '_background_noise_' || word === '_unknown_') {
+        return;
+      }
+      if (result.scores[i] > maxScore) {
+        maxScore = result.scores[i];
+        maxIndex = i;
+      }
     });
+    console.log(`word=${words[maxIndex]}; score=${maxScore}`);
+    const controlIndex = ui.CONTROLS.indexOf(words[maxIndex]);
+    if (controlIndex !== -1) {
+      ui.predictClass(controlIndex);
+    }
+  }, {
+    overlapFactor: 0.2,
+    includeSpectrogram: false,
+    probabilityThreshold: 0.5
+  });
+  // }
+  //   const predictedClass = tf.tidy(() => {
+  //     // Capture the frame from the webcam.
+  //     const img = webcam.capture();
 
-    const classId = (await predictedClass.data())[0];
-    predictedClass.dispose();
+  //     // Make a prediction through mobilenet, getting the internal activation of
+  //     // the mobilenet model.
+  //     const activation = mobilenet.predict(img);
 
-    ui.predictClass(classId);
-    await tf.nextFrame();
-  }
-  ui.donePredicting();
+  //     // Make a prediction through our newly-trained model using the activation
+  //     // from mobilenet as input.
+  //     const predictions = model.predict(activation);
+
+  //     // Returns the index with the maximum probability. This number corresponds
+  //     // to the class the model thinks is the most probable given the input.
+  //     return predictions.as1D().argMax();
+  //   });
+
+  //   const classId = (await predictedClass.data())[0];
+  //   predictedClass.dispose();
+
+  //   ui.predictClass(classId);
+  //   await tf.nextFrame();
+  // }
+  // ui.donePredicting();
 }
 
 document.getElementById('train').addEventListener('click', async () => {
@@ -161,7 +192,7 @@ document.getElementById('train').addEventListener('click', async () => {
   isPredicting = false;
   train();
 });
-document.getElementById('predict').addEventListener('click', () => {
+document.getElementById('predict').addEventListener('click', async () => {
   ui.startPacman();
   isPredicting = true;
   predict();
