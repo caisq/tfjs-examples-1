@@ -9,7 +9,7 @@
     "node": ">=8.9.0"
   },
   "dependencies": {
-    "@tensorflow-models/speech-commands": "^0.1.1",
+    "@tensorflow-models/speech-commands": "file:.yalc/@tensorflow-models/speech-commands",
     "@tensorflow/tfjs": "^0.12.7",
     "vega-embed": "^3.0.0"
   },

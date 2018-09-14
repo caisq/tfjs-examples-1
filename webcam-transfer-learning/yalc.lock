@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "packages": {
+    "@tensorflow-models/speech-commands": {
+      "signature": "223979425d863721a9acbda8ffd40556",
+      "file": true,
+      "replaced": "^0.1.2"
+    }
+  }
+}

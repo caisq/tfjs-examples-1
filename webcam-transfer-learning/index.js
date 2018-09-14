@@ -131,7 +131,7 @@ async function predict() {
   // while (isPredicting) {
 
   console.log(`speechCfommands version: ${speechCommands.version}`);  // DEBUG
-  const recognizer = speechCommands.create('BROWSER_FFT');
+  const recognizer = speechCommands.create('BROWSER_FFT', 'directional4w');
   console.log(recognizer);
   await recognizer.ensureModelLoaded();
   const words = recognizer.wordLabels();
@@ -154,7 +154,7 @@ async function predict() {
       ui.predictClass(controlIndex);
     }
   }, {
-    overlapFactor: 0.2,
+    overlapFactor: 0.25,
     includeSpectrogram: false,
     probabilityThreshold: 0.5
   });
