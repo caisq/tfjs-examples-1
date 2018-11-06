@@ -16,99 +16,130 @@
  */
 
 import * as tf from '@tensorflow/tfjs';
-import {generateExampleBatch} from './synthetic_data';
+import {ObjectDetectionDataSynthesizer} from './synthetic_data';
 
-const trainButton = document.getElementById('train');
+const testButton = document.getElementById('test');
 
-async function loadDecapitatedMobilenet() {
-  const mobilenet = await tf.loadModel(
-      'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v1_0.25_224/model.json');
+const TRUE_BOUNDING_BOX_LINE_WIDTH = 2;
+const TRUE_BOUNDING_BOX_STYLE = 'rgb(255,0,0)';
+const PREDICT_BOUNDING_BOX_LINE_WIDTH = 2;
+const PREDICT_BOUNDING_BOX_STYLE = 'rgb(0,0,255)';
 
-  // Return a model that outputs an internal activation.
-  const layer = mobilenet.getLayer('conv_pw_13_relu');
-  const decapitatedBase = tf.model({
-    inputs: mobilenet.inputs,
-    outputs: layer.output
-  });
-  // Freeze the model's layers.
-  for (const layer of decapitatedBase.layers) {
-    layer.trainable = false;
-  }
-  return decapitatedBase;
-}
+function drawBoundingBox(canvas, trueBoundingBox, predictBoundigBox) {
+  tf.util.assert(
+      trueBoundingBox != null && trueBoundingBox.length === 4,
+      `Expected boundingBoxArray to have less 4, ` +
+      `but got ${trueBoundingBox} instead`);
+  tf.util.assert(
+      predictBoundigBox != null && predictBoundigBox.length === 4,
+      `Expected boundingBoxArray to have less 4, ` +
+      `but got ${trueBoundingBox} instead`);
 
-async function buildObjectDetectionModel() {
-  const decapitatedBase = await loadDecapitatedMobilenet();
-  // model.summary();  // DEBUG
-  console.log(decapitatedBase.inputs[0].shape);  // DEBUG
+  // Plot true bounding box.
+  let left = trueBoundingBox[0];
+  let right = trueBoundingBox[1];
+  let top = trueBoundingBox[2];
+  let bottom = trueBoundingBox[3];
 
-  const newHead = tf.sequential();
-  newHead.add(tf.layers.flatten({
-    inputShape: decapitatedBase.outputs[0].shape.slice(1)
-  }));
-  newHead.add(tf.layers.dense({units: 20, activation: 'relu'}));
-  newHead.add(tf.layers.dense({units: 4}));
+  const ctx = canvas.getContext('2d');
+  ctx.beginPath();
+  ctx.strokeStyle = TRUE_BOUNDING_BOX_STYLE;
+  ctx.lineWidth = TRUE_BOUNDING_BOX_LINE_WIDTH;
+  ctx.moveTo(left, top);
+  ctx.lineTo(right, top);
+  ctx.lineTo(right, bottom);
+  ctx.lineTo(left, bottom);
+  ctx.lineTo(left, top);
+  ctx.stroke();
 
-  const newHeadOutput = newHead.apply(decapitatedBase.outputs[0]);
-  console.log('newHeadOutput.shape:', newHeadOutput.shape);
+  ctx.font = "15px Arial";
+  ctx.fillStyle = TRUE_BOUNDING_BOX_STYLE;
+  ctx.fillText('true', left, top);
 
-  const objDetectModel = tf.model({
-    inputs: decapitatedBase.inputs,
-    outputs: newHeadOutput
-  });
+  // Plot predicted bounding box.
+  left = predictBoundigBox[0];
+  right = predictBoundigBox[1];
+  top = predictBoundigBox[2];
+  bottom = predictBoundigBox[3];
 
-  objDetectModel.compile({loss: 'meanSquaredError', optimizer: 'rmsprop'});
-  // objDetectModel.summary();
-  console.log(objDetectModel.outputs[0].shape);  // DEBUG
-  return objDetectModel;
+  ctx.beginPath();
+  ctx.strokeStyle = PREDICT_BOUNDING_BOX_STYLE;
+  ctx.lineWidth = PREDICT_BOUNDING_BOX_LINE_WIDTH;
+  ctx.moveTo(left, top);
+  ctx.lineTo(right, top);
+  ctx.lineTo(right, bottom);
+  ctx.lineTo(left, bottom);
+  ctx.lineTo(left, top);
+  ctx.stroke();
+
+  ctx.font = "15px Arial";
+  ctx.fillStyle = PREDICT_BOUNDING_BOX_STYLE;
+  ctx.fillText('predicted', left, bottom);
 }
 
 async function init() {
-  const model = await buildObjectDetectionModel();
-  console.log('model.outputs[0].shape:', model.outputs[0].shape);  // DEBUG
+  const canvas = document.getElementById('data-canvas');
 
-  const numTrainExamples = 64;
-  const numValExamples = 20;
+  const model = await tf.loadModel('object_detection_model/model.json');
+  model.summary();
 
-  const numCircles = 1;
-  const numLines = 1;
-  const {images: valImages, boundingBoxes: valBoundingBoxes} =
-     await generateExampleBatch(numValExamples, numCircles, numLines);
+  testButton.addEventListener('click', async () => {
+    const synth = new ObjectDetectionDataSynthesizer(canvas, tf);
+    const {images, boundingBoxes} =
+        await synth.generateExampleBatch(1, 10, 10);
 
-  const iterations = 50;
-
-    // boundingBoxes.print();
-
-  trainButton.addEventListener('click', async () => {
-    for (let i = 0; i < iterations; ++i) {
-      console.log(`iterations ${i + 1} / ${iterations}`);
-
-      const {images, boundingBoxes} =
-          await generateExampleBatch(numTrainExamples, numCircles, numLines);
-      let currentEpoch;
-      await model.fit(images, boundingBoxes, {
-        epochs: 1,
-        batchSize: 16,
-        validationData: [valImages, valBoundingBoxes],
-        callbacks: {
-          onEpochBegin: async (epoch) => {
-            currentEpoch = epoch;
-          },
-          onBatchEnd: async (batch, logs) => {
-            console.log(
-                `  Epoch ${currentEpoch}, batch ${batch}: ` +
-                `loss = ${logs.loss}`);
-          },
-          onEpochEnd: async (epoch, logs) => {
-            console.log(
-                `Epoch ${epoch}: loss = ${logs.loss}, ` +
-                `val_loss = ${logs.val_loss}`);
-          }
-        }
-      });
-      tf.dispose([images, boundingBoxes]);
-    }
+    tf.tidy(() => {
+      const boundingBoxArray = boundingBoxes.dataSync();
+      const out = model.predict(images);
+      drawBoundingBox(canvas, boundingBoxArray, out.dataSync());
+    });
   });
+
+  // const model = await buildObjectDetectionModel();
+  // console.log('model.outputs[0].shape:', model.outputs[0].shape);  // DEBUG
+
+  // const numTrainExamples = 32;
+  // const numValExamples = 20;
+
+  // const numCircles = 1;
+  // const numLines = 1;
+  // const {images: valImages, boundingBoxes: valBoundingBoxes} =
+  //     await generateExampleBatch(numValExamples, numCircles, numLines);
+
+  // const iterations = 50;
+
+  // // boundingBoxes.print();
+
+  // trainButton.addEventListener('click', async () => {
+  //   for (let i = 0; i < iterations; ++i) {
+  //     console.log(`iterations ${i + 1} / ${iterations}`);
+
+  //     const {images, boundingBoxes} =
+  //         await generateExampleBatch(numTrainExamples, numCircles, numLines);
+  //     let currentEpoch;
+  //     await model.fit(images, boundingBoxes, {
+  //       epochs: 1,
+  //       batchSize: 16,
+  //       validationData: [valImages, valBoundingBoxes],
+  //       callbacks: {
+  //         onEpochBegin: async (epoch) => {
+  //           currentEpoch = epoch;
+  //         },
+  //         onBatchEnd: async (batch, logs) => {
+  //           console.log(
+  //               `  Epoch ${currentEpoch}, batch ${batch}: ` +
+  //               `loss = ${logs.loss}`);
+  //         },
+  //         onEpochEnd: async (epoch, logs) => {
+  //           console.log(
+  //               `Epoch ${epoch}: loss = ${logs.loss}, ` +
+  //               `val_loss = ${logs.val_loss}`);
+  //         }
+  //       }
+  //     });
+  //     tf.dispose([images, boundingBoxes]);
+  //   }
+  // });
   // TODO(cais): Do evaluate().
 }
 
