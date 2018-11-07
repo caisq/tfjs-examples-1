@@ -17,7 +17,7 @@
 
 const canvas = require('canvas');
 const tf = require('@tensorflow/tfjs');
-const synthesizer = require('./synthetic_data');
+const synthesizer = require('./synthetic_images');
 const fetch = require('node-fetch');
 require('@tensorflow/tfjs-node-gpu');
 
@@ -123,7 +123,7 @@ async function buildObjectDetectionModel() {
 
   console.log(`Generating ${numExamples} training examples...`);  // DEBUG
   const synth =
-      new synthesizer.ObjectDetectionDataSynthesizer(synthDataCanvas, tf);
+      new synthesizer.ObjectDetectionImageSynthesizer(synthDataCanvas, tf);
   const {images, targets} =
       await synth.generateExampleBatch(numExamples, numCircles, numLines);
 

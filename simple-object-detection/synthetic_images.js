@@ -24,13 +24,15 @@ function generateRandomColorStyle() {
   return `rgb(${colorR},${colorG},${colorB})`;
 }
 
-class ObjectDetectionDataSynthesizer {
+class ObjectDetectionImageSynthesizer {
   constructor(canvas, tensorFlow) {
     this.canvas = canvas;
     tf = tensorFlow;
 
     this.CIRCLE_RADIUS_MIN = 5;
     this.CIRCLE_RADIUS_MAX = 20;
+    this.RECTANGLE_SIDE_MIN = 40;
+    this.RECTANGLE_SIDE_MAX = 100;
     this.SIDE_MIN = 50;
     this.SIDE_MAX = 100;
   }
@@ -69,81 +71,75 @@ class ObjectDetectionDataSynthesizer {
       ctx.stroke();
     }
 
-    // Draw the detection target: an equilateral triangle.
-    const isSquare = Math.random() > triangleProbability;
-    const side =
-        this.SIDE_MIN + (this.SIDE_MAX - this.SIDE_MIN) * Math.random();
-    const centerX = (w - side) * Math.random() + (side / 2);
-    const centerY = (h - side) * Math.random() + (side / 2);
+    // Draw the detection target: a rectangle or an equilateral triangle.
+    const isRectangle = Math.random() > triangleProbability;
+    
     let boundingBox;
     ctx.fillStyle = generateRandomColorStyle();
     ctx.beginPath();
-    if (isSquare) {
-      // Draw square. TODO(cais): Make rectangle?
-      ctx.moveTo(centerX - side / 2, centerY - side / 2);
-      ctx.lineTo(centerX + side / 2, centerY - side / 2);
-      ctx.lineTo(centerX + side / 2, centerY + side / 2);
-      ctx.lineTo(centerX - side / 2, centerY + side / 2);
+    if (isRectangle) {
+      // Both side lengths of the rectangle are random and independent of
+      // each other.
+      const rectangleW = Math.random() *
+          (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
+          this.RECTANGLE_SIDE_MIN;
+      const rectangleH = Math.random() *
+          (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
+          this.RECTANGLE_SIDE_MIN;
+      const centerX = (w - rectangleW) * Math.random() + (rectangleW / 2);
+      const centerY = (h - rectangleH) * Math.random() + (rectangleH / 2);
+      ctx.moveTo(centerX - rectangleW / 2, centerY - rectangleH / 2);
+      ctx.lineTo(centerX + rectangleW / 2, centerY - rectangleH / 2);
+      ctx.lineTo(centerX + rectangleW / 2, centerY + rectangleH / 2);
+      ctx.lineTo(centerX - rectangleW / 2, centerY + rectangleH / 2);
 
-      // boundingBox = [
+      // boundingBox = [  // TODO(cais): Clean up.
       //   (centerX - side / 2) / w, (centerX + side / 2) / w,
       //   (centerY - side / 2) / h, (centerY + side / 2) / h
       // ];
       boundingBox = [
-        (centerX - side / 2), (centerX + side / 2),
-        (centerY - side / 2), (centerY + side / 2)
+        centerX - rectangleW / 2, centerX + rectangleW / 2,
+        centerY - rectangleH / 2, centerY + rectangleH / 2
       ]
     } else {
-      const randomRotate = true;
-
       // Draw triangle.
+      // The distance from the center of the triangle to any of the three
+      // vertices.
+      const side =
+          this.SIDE_MIN + (this.SIDE_MAX - this.SIDE_MIN) * Math.random();
+      const centerX = (w - side) * Math.random() + (side / 2);
+      const centerY = (h - side) * Math.random() + (side / 2);
       const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
       ctx.fillStyle = generateRandomColorStyle();
       ctx.beginPath();
 
-      if (randomRotate) {
-        const angle = Math.PI / 3 * 2 * Math.random();  // 0 - 120 degrees.
-        const alpha1 = angle + Math.PI / 2;
-        const x1 = centerX + Math.cos(alpha1) * ctrToVertex;
-        const y1 = centerY + Math.sin(alpha1) * ctrToVertex;
-        const alpha2 = alpha1 + Math.PI / 3 * 2;
-        const x2 = centerX + Math.cos(alpha2) * ctrToVertex;
-        const y2 = centerY + Math.sin(alpha2) * ctrToVertex;
-        const alpha3 = alpha2 + Math.PI / 3 * 2;
-        const x3 = centerX + Math.cos(alpha3) * ctrToVertex;
-        const y3 = centerY + Math.sin(alpha3) * ctrToVertex;
+      // Rotate the equilateral triangle by a random angle uniformly distributed
+      // between 0 and degrees.
+      const angle = Math.PI / 3 * 2 * Math.random();  // 0 - 120 degrees.
+      const alpha1 = angle + Math.PI / 2;
+      const x1 = centerX + Math.cos(alpha1) * ctrToVertex;
+      const y1 = centerY + Math.sin(alpha1) * ctrToVertex;
+      const alpha2 = alpha1 + Math.PI / 3 * 2;
+      const x2 = centerX + Math.cos(alpha2) * ctrToVertex;
+      const y2 = centerY + Math.sin(alpha2) * ctrToVertex;
+      const alpha3 = alpha2 + Math.PI / 3 * 2;
+      const x3 = centerX + Math.cos(alpha3) * ctrToVertex;
+      const y3 = centerY + Math.sin(alpha3) * ctrToVertex;
 
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.lineTo(x3, y3);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
 
-        const xs = [x1, x2, x3];
-        const ys = [y1, y2, y3];
-        boundingBox = [
-            Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-      } else {
-        const strToSide = ctrToVertex / 2;
-        const topX = centerX;
-        const topY = centerY - ctrToVertex;
-        const leftX = centerX - side / 2;
-        const leftY = centerY + strToSide;
-        const rightX = centerX + side / 2;
-        const rightY = leftY;
-        
-        ctx.moveTo(topX, topY);
-        ctx.lineTo(leftX, leftY);
-        ctx.lineTo(rightX, rightY);
-
-        // boundingBox = [leftX / w, rightX / w, topY / h, leftY / h];
-        boundingBox = [leftX, rightX, topY, leftY];
-      }
+      const xs = [x1, x2, x3];
+      const ys = [y1, y2, y3];
+      boundingBox =
+          [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     }
     ctx.fill();
 
     return tf.tidy(() => {
       const imageTensor = tf.fromPixels(this.canvas);
-      const targetTensor =
-          tf.tensor1d([isSquare ? w : 0].concat(boundingBox));
+      const targetTensor = tf.tensor1d([isRectangle ? w : 0].concat(boundingBox));
       return {image: imageTensor, target: targetTensor};
     });
   }
@@ -163,4 +159,4 @@ class ObjectDetectionDataSynthesizer {
   }
 }
 
-module.exports = {ObjectDetectionDataSynthesizer};
+module.exports = {ObjectDetectionImageSynthesizer};

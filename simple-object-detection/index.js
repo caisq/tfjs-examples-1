@@ -16,7 +16,7 @@
  */
 
 import * as tf from '@tensorflow/tfjs';
-import {ObjectDetectionDataSynthesizer} from './synthetic_data';
+import {ObjectDetectionImageSynthesizer} from './synthetic_images';
 
 const testButton = document.getElementById('test');
 
@@ -95,14 +95,16 @@ async function init() {
   model.summary();
 
   testButton.addEventListener('click', async () => {
-    const synth = new ObjectDetectionDataSynthesizer(canvas, tf);
+    const synth = new ObjectDetectionImageSynthesizer(canvas, tf);
     const {images, targets} = await synth.generateExampleBatch(1, 10, 10);
 
     tf.tidy(() => {
-      const boundingBoxArray = Array.from(targets.dataSync()).slice(1);
-      const out = model.predict(images);
-      out.print();  // DEBUG
-      drawBoundingBox(canvas, boundingBoxArray, out.dataSync().slice(1));
+      const boundingBoxArray = Array.from(targets.dataSync()).slice(1);      
+      const t0 = tf.util.now();
+      const modelOut = model.predict(images).dataSync();
+      const tElapsed = tf.util.now() - t0;
+      console.log(tElapsed);
+      drawBoundingBox(canvas, boundingBoxArray, modelOut.slice(1));
     });
   });
 }
