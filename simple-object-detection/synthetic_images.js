@@ -15,6 +15,15 @@
  * =============================================================================
  */
 
+/**
+ * Module for synthesizing images to be used for training and testing the
+ * simple object-detection model.
+ * 
+ * This module is written in a way that can be used in both the Node.js-based
+ * training pipeline (train.js) and the browser-based testing environment
+ * (index.js).
+ */
+
 let tf;  // tensorflowjs module passed in for browser/node compatibility.
 
 /**
@@ -54,12 +63,15 @@ class ObjectDetectionImageSynthesizer {
     this.canvas = canvas;
     tf = tensorFlow;
 
+    // Min and max of circles' radii.
     this.CIRCLE_RADIUS_MIN = 5;
     this.CIRCLE_RADIUS_MAX = 20;
+    // Min and max of rectangle side lengths.
     this.RECTANGLE_SIDE_MIN = 40;
     this.RECTANGLE_SIDE_MAX = 100;
-    this.SIDE_MIN = 50;
-    this.SIDE_MAX = 100;
+    // Min and max of triangle side lengths.
+    this.TRIANGLE_SIDE_MIN = 50;
+    this.TRIANGLE_SIDE_MAX = 100;
   }
 
   /**
@@ -76,8 +88,9 @@ class ObjectDetectionImageSynthesizer {
    *   - image: A [w, h, 3]-shaped tensor for the pixel content of the image.
    *     w and h are the width and height of the canvas, respectively.
    *   - target: A [5]-shaped tensor. The first element is a 0-1 indicator
-   *     for whether the target is a rectangle. The remaning four elements
-   *     are the bounding box of the shape: [left, right, top, bottom].
+   *     for whether the target is a triangle (0) or a rectangle (1).
+   *     The remaning four elements are the bounding box of the shape:
+   *     [left, right, top, bottom], in the unit of pixels.
    */
   async generateExample(numCircles, numLines, triangleProbability = 0.5) {
     if (triangleProbability == null) {
@@ -155,7 +168,7 @@ class ObjectDetectionImageSynthesizer {
       // The distance from the center of the triangle to any of the three
       // vertices.
       const side =
-          this.SIDE_MIN + (this.SIDE_MAX - this.SIDE_MIN) * Math.random();
+          this.TRIANGLE_SIDE_MIN + (this.TRIANGLE_SIDE_MAX - this.TRIANGLE_SIDE_MIN) * Math.random();
       const centerX = (w - side) * Math.random() + (side / 2);
       const centerY = (h - side) * Math.random() + (side / 2);
       const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
@@ -208,8 +221,9 @@ class ObjectDetectionImageSynthesizer {
    *     the image. w and h are the width and height of the canvas,
    *     respectively.
    *   - target: A [batchSize, 5]-shaped tensor. The first column is a 0-1
-   *     indicator for whether the target is a rectangle. The remaning four
-   *     columns are the bounding box of the shape: [left, right, top, bottom].
+   *     indicator for whether the target is a triangle(0) or a rectangle (1).
+   *     The remaning four columns are the bounding box of the shape:
+   *     [left, right, top, bottom], in the unit of pixels.
    */
   async generateExampleBatch(
       batchSize, numCircles, numLines, triangleProbability) {

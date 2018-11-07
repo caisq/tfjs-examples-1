@@ -103,7 +103,7 @@ async function init() {
       const t0 = tf.util.now();
       const modelOut = model.predict(images).dataSync();
       const tElapsed = tf.util.now() - t0;
-      console.log(tElapsed);
+      console.log(tElapsed, modelOut);
       drawBoundingBox(canvas, boundingBoxArray, modelOut.slice(1));
     });
   });

@@ -52,25 +52,31 @@ async function loadDecapitatedMobilenet() {
   return {decapitatedBase, fineTuningLayers};
 }
 
-// const multiplier = tf.scalar(100);
+const classLossMultiplier = tf.scalar(1000);
 
 function customLossFunction(yTrue, yPred) {
   return tf.tidy(() => {
-    // const batchSize = yTrue.shape[0];
-    // const boundingBoxDims = yTrue.shape[1] - 1;
+    const batchSize = yTrue.shape[0];
+    const boundingBoxDims = yTrue.shape[1] - 1;
     // TODO(cais): Use them.
-    // const classTrue = yTrue.slice([0, 0], [batchSize, 1]);
-    // const classPred = tf.sigmoid(yPred.slice([0, 0], [batchSize, 1]));
+    const classTrue = yTrue.slice([0, 0], [batchSize, 1]);
+    const classPred = tf.sigmoid(yPred.slice([0, 0], [batchSize, 1]));
+    const classLoss = tf.metrics.binaryCrossentropy(classTrue, classPred).mean();
     // classTrue.print();
     // classPred.print();
 
-    // const boundingBoxTrue = yTrue.slice([0, 1], [batchSize, boundingBoxDims]);
-    // const boundingBoxPred = yPred.slice([0, 1], [batchSize, boundingBoxDims]);
-    // const boundingBoxLoss =
-    //     tf.metrics.meanAbsoluteError(boundingBoxTrue, boundingBoxPred);
+    const boundingBoxTrue = yTrue.slice([0, 1], [batchSize, boundingBoxDims]);
+    const boundingBoxPred = yPred.slice([0, 1], [batchSize, boundingBoxDims]);
+    const boundingBoxLoss =
+        tf.metrics.meanSquaredError(boundingBoxTrue, boundingBoxPred);
+    const totalLoss =
+        classLoss.mulStrict(classLossMultiplier).add(boundingBoxLoss);
+    return totalLoss;
     // return boundingBoxLoss;
     // return tf.metrics.meanAbsoluteError(yTrue, yPred);
-    return tf.metrics.meanSquaredError(yTrue, yPred);
+
+    // TODO(cais): Simplistic approach. Discard.
+    // return tf.metrics.meanSquaredError(yTrue, yPred);
   });
 }
 
@@ -93,14 +99,14 @@ async function buildObjectDetectionModel() {
   //   const zBoundingBox = tf.layers.dense({units: 4, name:
   //   'boundsOut'}).apply(y); const model = tf.model(
   //       {inputs: decapitatedBase.inputs, outputs: [zShape, zBoundingBox]});
-//   console.log(model.outputs[0].shape);  // DEBUG
-//   console.log(model.outputs[1].shape);  // DEBUG
+  //   console.log(model.outputs[0].shape);  // DEBUG
+  //   console.log(model.outputs[1].shape);  // DEBUG
 
   const newHead = tf.sequential();
   newHead.add(tf.layers.flatten(
       {inputShape: decapitatedBase.outputs[0].shape.slice(1)}));
-  newHead.add(tf.layers.dense({
-      units: 200, activation: 'relu', kernelInitializer: 'leCunNormal'}));
+  newHead.add(tf.layers.dense(
+      {units: 200, activation: 'relu', kernelInitializer: 'leCunNormal'}));
   newHead.add(tf.layers.dense({units: 5, kernelInitializer: 'leCunNormal'}));
   const newOutput = newHead.apply(decapitatedBase.outputs[0]);
   const model = tf.model({inputs: decapitatedBase.inputs, outputs: newOutput});
@@ -141,6 +147,7 @@ async function buildObjectDetectionModel() {
   //   });
   model.compile({loss: customLossFunction, optimizer: 'rmsprop'});
   //  tf.train.adam(5e-2)
+  // tf.train.rmsprop(1e-2)
   model.summary();
 
   //   await model.fit(images, [shapeTargets, boundingBoxTargets], {
@@ -155,27 +162,25 @@ async function buildObjectDetectionModel() {
   });
 
   // Unfreeze layers for fine-tuning.
-    for (const layer of fineTuningLayers) {
-      layer.trainable = true;
-    }
-    // model.compile({
-    //   loss: ['binaryCrossentropy', 'meanAbsoluteError'],
-    //   optimizer: 'rmsprop'
-    // });
-    model.compile({
-      loss: customLossFunction,
-      optimizer: 'rmsprop'
-    });
-    //  tf.train.adam(5e-2)
-    model.summary();
+  for (const layer of fineTuningLayers) {
+    layer.trainable = true;
+  }
+  // model.compile({
+  //   loss: ['binaryCrossentropy', 'meanAbsoluteError'],
+  //   optimizer: 'rmsprop'
+  // });
+  model.compile({loss: customLossFunction, optimizer: 'rmsprop'});
+  // tf.train.adam(5e-2)
+  // tf.train.rmsprop(1e-2)
+  model.summary();
 
-    // Do fine-tuning.
-    await model.fit(images, targets, {
-      epochs: fineTuningEpochs,
-      batchSize: batchSize / 2,
-      validationSplit: 0.15,
-    });
+  // Do fine-tuning.
+  await model.fit(images, targets, {
+    epochs: fineTuningEpochs,
+    batchSize: batchSize / 2,
+    validationSplit: 0.15,
+  });
 
-    // Save model.
-    await model.save('file://./dist/object_detection_model');
+  // Save model.
+  await model.save('file://./dist/object_detection_model');
 })();
