@@ -15,8 +15,13 @@
  * =============================================================================
  */
 
-let tf;
+let tf;  // tensorflowjs module passed in for browser/node compatibility.
 
+/**
+ * Generate a random color style for canvas strokes and fills.
+ *
+ * @returns {string} Style string in the form of 'rgb(100,200,250)'.
+ */
 function generateRandomColorStyle() {
   const colorR = Math.round(Math.random() * 255);
   const colorG = Math.round(Math.random() * 255);
@@ -24,7 +29,27 @@ function generateRandomColorStyle() {
   return `rgb(${colorR},${colorG},${colorB})`;
 }
 
+/**
+ * Synthesizes images for simple object recognition.
+ *
+ * The synthesized imags consist of
+ * - a white background
+ * - a configurable number of circles of random radii and random color
+ * - a configurable number of line segments of random starting and ending
+ *   points and random color
+ * - Target object: a rectangle or a triangle, with configurable probabilities.
+ *   - If a rectangle, the side lengths are random and so is the color
+ *   - If a triangle, it is always equilateral. The side length and the color
+ *     is random and the triangle is rotated by a random angle.
+ */
 class ObjectDetectionImageSynthesizer {
+  /**
+   * Constructor of ObjectDetectionImageSynthesizer.
+   *
+   * @param {} canvas An HTML canvas object or node-canvas object.
+   * @param {*} tensorFlow A tensorflow module passed in. This done for
+   *   compatibility between browser and Node.js.
+   */
   constructor(canvas, tensorFlow) {
     this.canvas = canvas;
     tf = tensorFlow;
@@ -37,12 +62,38 @@ class ObjectDetectionImageSynthesizer {
     this.SIDE_MAX = 100;
   }
 
+  /**
+   * Generate a single image example.
+   *
+   * @param {number} numCircles Number of circles (background object type)
+   *   to include.
+   * @param {number} numLines Number of line segments (backgrond object
+   *   type) to include
+   * @param {number} triangleProbability The probability of the target
+   *   object being a triangle (instead of a rectangle). Must be a number
+   *   >= 0 and <= 1. Default: 0.5.
+   * @returns {Object} An object with the following fields:
+   *   - image: A [w, h, 3]-shaped tensor for the pixel content of the image.
+   *     w and h are the width and height of the canvas, respectively.
+   *   - target: A [5]-shaped tensor. The first element is a 0-1 indicator
+   *     for whether the target is a rectangle. The remaning four elements
+   *     are the bounding box of the shape: [left, right, top, bottom].
+   */
   async generateExample(numCircles, numLines, triangleProbability = 0.5) {
+    if (triangleProbability == null) {
+      triangleProbability = 0.5;
+    }
+    tf.util.assert(
+        triangleProbability >= 0 && triangleProbability <= 1,
+        `triangleProbability must be a number >= 0 and <= 1, but got ` +
+            `${triangleProbability}`);
+
+    // Canvas dimensions.
     const w = this.canvas.width;
     const h = this.canvas.height;
 
     const ctx = this.canvas.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, w, h);  // Clear canvas.
 
     // Draw circles.
     for (let i = 0; i < numCircles; ++i) {
@@ -57,7 +108,7 @@ class ObjectDetectionImageSynthesizer {
       ctx.fill();
     }
 
-    // Draw lines.
+    // Draw lines segments.
     for (let i = 0; i < numLines; ++i) {
       const x0 = Math.random() * w;
       const y0 = Math.random() * h;
@@ -71,20 +122,22 @@ class ObjectDetectionImageSynthesizer {
       ctx.stroke();
     }
 
-    // Draw the detection target: a rectangle or an equilateral triangle.
+    // Draw the target object: a rectangle or an equilateral triangle.
+    // Determine whether the target is a rectangle or a triangle.
     const isRectangle = Math.random() > triangleProbability;
-    
+
     let boundingBox;
     ctx.fillStyle = generateRandomColorStyle();
     ctx.beginPath();
     if (isRectangle) {
+      // Draw a rectangle.
       // Both side lengths of the rectangle are random and independent of
       // each other.
-      const rectangleW = Math.random() *
-          (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
+      const rectangleW =
+          Math.random() * (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
           this.RECTANGLE_SIDE_MIN;
-      const rectangleH = Math.random() *
-          (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
+      const rectangleH =
+          Math.random() * (this.RECTANGLE_SIDE_MAX - this.RECTANGLE_SIDE_MIN) +
           this.RECTANGLE_SIDE_MIN;
       const centerX = (w - rectangleW) * Math.random() + (rectangleW / 2);
       const centerY = (h - rectangleH) * Math.random() + (rectangleH / 2);
@@ -93,16 +146,12 @@ class ObjectDetectionImageSynthesizer {
       ctx.lineTo(centerX + rectangleW / 2, centerY + rectangleH / 2);
       ctx.lineTo(centerX - rectangleW / 2, centerY + rectangleH / 2);
 
-      // boundingBox = [  // TODO(cais): Clean up.
-      //   (centerX - side / 2) / w, (centerX + side / 2) / w,
-      //   (centerY - side / 2) / h, (centerY + side / 2) / h
-      // ];
       boundingBox = [
         centerX - rectangleW / 2, centerX + rectangleW / 2,
         centerY - rectangleH / 2, centerY + rectangleH / 2
       ]
     } else {
-      // Draw triangle.
+      // Draw an equilateral triangle, rotated by a random angle.
       // The distance from the center of the triangle to any of the three
       // vertices.
       const side =
@@ -139,16 +188,39 @@ class ObjectDetectionImageSynthesizer {
 
     return tf.tidy(() => {
       const imageTensor = tf.fromPixels(this.canvas);
-      const targetTensor = tf.tensor1d([isRectangle ? w : 0].concat(boundingBox));
+      const shapeClassIndicator = isRectangle ? 1 : 0;
+      const targetTensor =
+          tf.tensor1d([shapeClassIndicator].concat(boundingBox));
       return {image: imageTensor, target: targetTensor};
     });
   }
 
-  async generateExampleBatch(batchSize, numCircles, numLines) {
+  /**
+   * Generate a number (i.e., batch) of examples.
+   *
+   * @param {number} batchSize Number of example image in the batch.
+   * @param {number} numCircles Number of circles (background object type)
+   *   to include.
+   * @param {number} numLines Number of line segments (background object type)
+   *   to include.
+   * @returns {Object} An object with the following fields:
+   *   - image: A [batchSize, w, h, 3]-shaped tensor for the pixel content of
+   *     the image. w and h are the width and height of the canvas,
+   *     respectively.
+   *   - target: A [batchSize, 5]-shaped tensor. The first column is a 0-1
+   *     indicator for whether the target is a rectangle. The remaning four
+   *     columns are the bounding box of the shape: [left, right, top, bottom].
+   */
+  async generateExampleBatch(
+      batchSize, numCircles, numLines, triangleProbability) {
+    if (triangleProbability == null) {
+      triangleProbability = 0.5;
+    }
     const imageTensors = [];
     const targetTensors = [];
     for (let i = 0; i < batchSize; ++i) {
-      const {image, target} = await this.generateExample(numCircles, numLines);
+      const {image, target} =
+          await this.generateExample(numCircles, numLines, triangleProbability);
       imageTensors.push(image);
       targetTensors.push(target);
     }
