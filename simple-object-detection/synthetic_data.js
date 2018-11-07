@@ -102,7 +102,7 @@ class ObjectDetectionDataSynthesizer {
       ctx.beginPath();
 
       if (randomRotate) {
-        const angle = Math.PI / 3 * Math.random();  // 0 - 60 degrees.
+        const angle = Math.PI / 3 * 2 * Math.random();  // 0 - 120 degrees.
         const alpha1 = angle + Math.PI / 2;
         const x1 = centerX + Math.cos(alpha1) * ctrToVertex;
         const y1 = centerY + Math.sin(alpha1) * ctrToVertex;
