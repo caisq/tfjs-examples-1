@@ -28,11 +28,11 @@ const PREDICT_BOUNDING_BOX_STYLE = 'rgb(0,0,255)';
 function drawBoundingBox(canvas, trueBoundingBox, predictBoundingBox) {
   tf.util.assert(
       trueBoundingBox != null && trueBoundingBox.length === 4,
-      `Expected boundingBoxArray to have less 4, ` +
+      `Expected boundingBoxArray to have length 4, ` +
           `but got ${trueBoundingBox} instead`);
   tf.util.assert(
       predictBoundingBox != null && predictBoundingBox.length === 4,
-      `Expected boundingBoxArray to have less 4, ` +
+      `Expected boundingBoxArray to have length 4, ` +
           `but got ${trueBoundingBox} instead`);
 
   const w = canvas.width;

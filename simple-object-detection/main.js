@@ -23,8 +23,12 @@ require('@tensorflow/tfjs-node-gpu');
 
 global.fetch = fetch;
 
-const topLayerGroupName = 'conv_pw_11';
-const topLayerName = `${topLayerGroupName}_relu`;
+// Name prefixes of layers that will be unfrozen during fine-tuning.
+const topLayerGroupNames = ['conv_pw_10', 'conv_pw_11'];
+
+// Name of the layer that will become the top layer of the decapitated base.
+const topLayerName =
+    `${topLayerGroupNames[topLayerGroupNames.length - 1]}_relu`;
 
 async function loadDecapitatedMobilenet() {
   const mobilenet = await tf.loadModel(
@@ -38,8 +42,11 @@ async function loadDecapitatedMobilenet() {
   // Freeze the model's layers.
   for (const layer of decapitatedBase.layers) {
     layer.trainable = false;
-    if (layer.name.indexOf(topLayerGroupName) === 0) {
-      fineTuningLayers.push(layer);
+    for (const groupName of topLayerGroupNames) {
+      if (layer.name.indexOf(groupName) === 0) {
+        fineTuningLayers.push(layer);
+        break;
+      }
     }
   }
   return {decapitatedBase, fineTuningLayers};
@@ -127,11 +134,12 @@ async function buildObjectDetectionModel() {
   //   console.log(boundingBoxTargets.shape);  // DEBUG
 
   const {model, fineTuningLayers} = await buildObjectDetectionModel();
+  console.log('fineTuningLayers:', fineTuningLayers.length);  // DEBUG
   //   model.compile({
   //     loss: ['binaryCrossentropy', 'meanAbsoluteError'],
   //     optimizer: 'rmsprop'
   //   });
-  model.compile({loss: customLossFunction, optimizer: 'adam'});
+  model.compile({loss: customLossFunction, optimizer: 'rmsprop'});
   //  tf.train.adam(5e-2)
   model.summary();
 
@@ -156,7 +164,7 @@ async function buildObjectDetectionModel() {
     // });
     model.compile({
       loss: customLossFunction,
-      optimizer: 'adam'
+      optimizer: 'rmsprop'
     });
     //  tf.train.adam(5e-2)
     model.summary();
@@ -164,7 +172,7 @@ async function buildObjectDetectionModel() {
     // Do fine-tuning.
     await model.fit(images, targets, {
       epochs: fineTuningEpochs,
-      batchSize,
+      batchSize: batchSize / 2,
       validationSplit: 0.15,
     });
 

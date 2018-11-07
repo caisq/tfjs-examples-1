@@ -70,7 +70,7 @@ class ObjectDetectionDataSynthesizer {
     }
 
     // Draw the detection target: an equilateral triangle.
-    const isRectangle = Math.random() > triangleProbability;
+    const isSquare = Math.random() > triangleProbability;
     const side =
         this.SIDE_MIN + (this.SIDE_MAX - this.SIDE_MIN) * Math.random();
     const centerX = (w - side) * Math.random() + (side / 2);
@@ -78,7 +78,8 @@ class ObjectDetectionDataSynthesizer {
     let boundingBox;
     ctx.fillStyle = generateRandomColorStyle();
     ctx.beginPath();
-    if (isRectangle) {
+    if (isSquare) {
+      // Draw square. TODO(cais): Make rectangle?
       ctx.moveTo(centerX - side / 2, centerY - side / 2);
       ctx.lineTo(centerX + side / 2, centerY - side / 2);
       ctx.lineTo(centerX + side / 2, centerY + side / 2);
@@ -93,30 +94,56 @@ class ObjectDetectionDataSynthesizer {
         (centerY - side / 2), (centerY + side / 2)
       ]
     } else {
-      const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
-      const strToSide = ctrToVertex / 2;
-      const topX = centerX;
-      const topY = centerY - ctrToVertex;
-      const leftX = centerX - side / 2;
-      const leftY = centerY + strToSide;
-      const rightX = centerX + side / 2;
-      const rightY = leftY;
+      const randomRotate = true;
 
+      // Draw triangle.
+      const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
       ctx.fillStyle = generateRandomColorStyle();
       ctx.beginPath();
-      ctx.moveTo(topX, topY);
-      ctx.lineTo(leftX, leftY);
-      ctx.lineTo(rightX, rightY);
 
-      // boundingBox = [leftX / w, rightX / w, topY / h, leftY / h];
-      boundingBox = [leftX, rightX, topY, leftY];
+      if (randomRotate) {
+        const angle = Math.PI / 3 * Math.random();  // 0 - 60 degrees.
+        const alpha1 = angle + Math.PI / 2;
+        const x1 = centerX + Math.cos(alpha1) * ctrToVertex;
+        const y1 = centerY + Math.sin(alpha1) * ctrToVertex;
+        const alpha2 = alpha1 + Math.PI / 3 * 2;
+        const x2 = centerX + Math.cos(alpha2) * ctrToVertex;
+        const y2 = centerY + Math.sin(alpha2) * ctrToVertex;
+        const alpha3 = alpha2 + Math.PI / 3 * 2;
+        const x3 = centerX + Math.cos(alpha3) * ctrToVertex;
+        const y3 = centerY + Math.sin(alpha3) * ctrToVertex;
+
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.lineTo(x3, y3);
+
+        const xs = [x1, x2, x3];
+        const ys = [y1, y2, y3];
+        boundingBox = [
+            Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      } else {
+        const strToSide = ctrToVertex / 2;
+        const topX = centerX;
+        const topY = centerY - ctrToVertex;
+        const leftX = centerX - side / 2;
+        const leftY = centerY + strToSide;
+        const rightX = centerX + side / 2;
+        const rightY = leftY;
+        
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(leftX, leftY);
+        ctx.lineTo(rightX, rightY);
+
+        // boundingBox = [leftX / w, rightX / w, topY / h, leftY / h];
+        boundingBox = [leftX, rightX, topY, leftY];
+      }
     }
     ctx.fill();
 
     return tf.tidy(() => {
       const imageTensor = tf.fromPixels(this.canvas);
       const targetTensor =
-          tf.tensor1d([isRectangle ? w : 0].concat(boundingBox));
+          tf.tensor1d([isSquare ? w : 0].concat(boundingBox));
       return {image: imageTensor, target: targetTensor};
     });
   }
