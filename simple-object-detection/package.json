@@ -19,7 +19,8 @@
     "watch": "cross-env NODE_ENV=development parcel index.html --no-hmr --open",
     "build": "cross-env NODE_ENV=production parcel build index.html --no-minify --public-url ./",
     "link-local": "yalc link",
-    "postinstall": "yarn upgrade --pattern @tensorflow"
+    "postinstall": "yarn upgrade --pattern @tensorflow",
+    "train": "node train.js"
   },
   "devDependencies": {
     "babel-core": "^6.26.3",
