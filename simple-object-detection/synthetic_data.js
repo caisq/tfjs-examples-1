@@ -31,11 +31,11 @@ class ObjectDetectionDataSynthesizer {
 
     this.CIRCLE_RADIUS_MIN = 5;
     this.CIRCLE_RADIUS_MAX = 20;
-    this.TRIANGLE_SIDE_MIN = 50;
-    this.TRIANGLE_SIDE_MAX = 100;
+    this.SIDE_MIN = 50;
+    this.SIDE_MAX = 100;
   }
 
-  async generateExample(numCircles, numLines) {
+  async generateExample(numCircles, numLines, triangleProbability = 0.5) {
     const w = this.canvas.width;
     const h = this.canvas.height;
 
@@ -70,48 +70,69 @@ class ObjectDetectionDataSynthesizer {
     }
 
     // Draw the detection target: an equilateral triangle.
-    const side = this.TRIANGLE_SIDE_MIN +
-        (this.TRIANGLE_SIDE_MAX - this.TRIANGLE_SIDE_MIN) * Math.random();
+    const isRectangle = Math.random() > triangleProbability;
+    const side =
+        this.SIDE_MIN + (this.SIDE_MAX - this.SIDE_MIN) * Math.random();
     const centerX = (w - side) * Math.random() + (side / 2);
     const centerY = (h - side) * Math.random() + (side / 2);
-
-    const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
-    const strToSide = ctrToVertex / 2;
-    const topX = centerX;
-    const topY = centerY - ctrToVertex;
-    const leftX = centerX - side / 2;
-    const leftY = centerY + strToSide;
-    const rightX = centerX + side / 2;
-    const rightY = leftY;
-
+    let boundingBox;
     ctx.fillStyle = generateRandomColorStyle();
     ctx.beginPath();
-    ctx.moveTo(topX, topY);
-    ctx.lineTo(leftX, leftY);
-    ctx.lineTo(rightX, rightY);
+    if (isRectangle) {
+      ctx.moveTo(centerX - side / 2, centerY - side / 2);
+      ctx.lineTo(centerX + side / 2, centerY - side / 2);
+      ctx.lineTo(centerX + side / 2, centerY + side / 2);
+      ctx.lineTo(centerX - side / 2, centerY + side / 2);
+
+      // boundingBox = [
+      //   (centerX - side / 2) / w, (centerX + side / 2) / w,
+      //   (centerY - side / 2) / h, (centerY + side / 2) / h
+      // ];
+      boundingBox = [
+        (centerX - side / 2), (centerX + side / 2),
+        (centerY - side / 2), (centerY + side / 2)
+      ]
+    } else {
+      const ctrToVertex = side / 2 / Math.cos(30 / 180 * Math.PI);
+      const strToSide = ctrToVertex / 2;
+      const topX = centerX;
+      const topY = centerY - ctrToVertex;
+      const leftX = centerX - side / 2;
+      const leftY = centerY + strToSide;
+      const rightX = centerX + side / 2;
+      const rightY = leftY;
+
+      ctx.fillStyle = generateRandomColorStyle();
+      ctx.beginPath();
+      ctx.moveTo(topX, topY);
+      ctx.lineTo(leftX, leftY);
+      ctx.lineTo(rightX, rightY);
+
+      // boundingBox = [leftX / w, rightX / w, topY / h, leftY / h];
+      boundingBox = [leftX, rightX, topY, leftY];
+    }
     ctx.fill();
 
     return tf.tidy(() => {
       const imageTensor = tf.fromPixels(this.canvas);
-      
-      const boundingBoxTensor = tf.tensor1d([leftX, rightX, topY, leftY]);
-      return {image: imageTensor, boundingBox: boundingBoxTensor};
+      const targetTensor =
+          tf.tensor1d([isRectangle ? w : 0].concat(boundingBox));
+      return {image: imageTensor, target: targetTensor};
     });
   }
 
   async generateExampleBatch(batchSize, numCircles, numLines) {
     const imageTensors = [];
-    const boundingBoxTensors = [];
+    const targetTensors = [];
     for (let i = 0; i < batchSize; ++i) {
-      const {image, boundingBox} =
-          await this.generateExample(numCircles, numLines);
+      const {image, target} = await this.generateExample(numCircles, numLines);
       imageTensors.push(image);
-      boundingBoxTensors.push(boundingBox);
+      targetTensors.push(target);
     }
     const images = tf.stack(imageTensors);
-    const boundingBoxes = tf.stack(boundingBoxTensors);
-    tf.dispose([imageTensors, boundingBoxTensors]);
-    return {images, boundingBoxes};
+    const targets = tf.stack(targetTensors);
+    tf.dispose([imageTensors, targetTensors]);
+    return {images, targets};
   }
 }
 

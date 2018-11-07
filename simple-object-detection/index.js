@@ -25,17 +25,24 @@ const TRUE_BOUNDING_BOX_STYLE = 'rgb(255,0,0)';
 const PREDICT_BOUNDING_BOX_LINE_WIDTH = 2;
 const PREDICT_BOUNDING_BOX_STYLE = 'rgb(0,0,255)';
 
-function drawBoundingBox(canvas, trueBoundingBox, predictBoundigBox) {
+function drawBoundingBox(canvas, trueBoundingBox, predictBoundingBox) {
   tf.util.assert(
       trueBoundingBox != null && trueBoundingBox.length === 4,
       `Expected boundingBoxArray to have less 4, ` +
-      `but got ${trueBoundingBox} instead`);
+          `but got ${trueBoundingBox} instead`);
   tf.util.assert(
-      predictBoundigBox != null && predictBoundigBox.length === 4,
+      predictBoundingBox != null && predictBoundingBox.length === 4,
       `Expected boundingBoxArray to have less 4, ` +
-      `but got ${trueBoundingBox} instead`);
+          `but got ${trueBoundingBox} instead`);
+
+  const w = canvas.width;
+  const h = canvas.height;
 
   // Plot true bounding box.
+  // let left = trueBoundingBox[0] * w;
+  // let right = trueBoundingBox[1] * w;
+  // let top = trueBoundingBox[2] * h;
+  // let bottom = trueBoundingBox[3] * h;
   let left = trueBoundingBox[0];
   let right = trueBoundingBox[1];
   let top = trueBoundingBox[2];
@@ -52,15 +59,19 @@ function drawBoundingBox(canvas, trueBoundingBox, predictBoundigBox) {
   ctx.lineTo(left, top);
   ctx.stroke();
 
-  ctx.font = "15px Arial";
+  ctx.font = '15px Arial';
   ctx.fillStyle = TRUE_BOUNDING_BOX_STYLE;
   ctx.fillText('true', left, top);
 
   // Plot predicted bounding box.
-  left = predictBoundigBox[0];
-  right = predictBoundigBox[1];
-  top = predictBoundigBox[2];
-  bottom = predictBoundigBox[3];
+  // left = predictBoundingBox[0] * w;
+  // right = predictBoundingBox[1] * w;
+  // top = predictBoundingBox[2] * h;
+  // bottom = predictBoundingBox[3] * h;
+  left = predictBoundingBox[0];
+  right = predictBoundingBox[1];
+  top = predictBoundingBox[2];
+  bottom = predictBoundingBox[3];
 
   ctx.beginPath();
   ctx.strokeStyle = PREDICT_BOUNDING_BOX_STYLE;
@@ -72,7 +83,7 @@ function drawBoundingBox(canvas, trueBoundingBox, predictBoundigBox) {
   ctx.lineTo(left, top);
   ctx.stroke();
 
-  ctx.font = "15px Arial";
+  ctx.font = '15px Arial';
   ctx.fillStyle = PREDICT_BOUNDING_BOX_STYLE;
   ctx.fillText('predicted', left, bottom);
 }
@@ -85,62 +96,15 @@ async function init() {
 
   testButton.addEventListener('click', async () => {
     const synth = new ObjectDetectionDataSynthesizer(canvas, tf);
-    const {images, boundingBoxes} =
-        await synth.generateExampleBatch(1, 10, 10);
+    const {images, targets} = await synth.generateExampleBatch(1, 10, 10);
 
     tf.tidy(() => {
-      const boundingBoxArray = boundingBoxes.dataSync();
+      const boundingBoxArray = Array.from(targets.dataSync()).slice(1);
       const out = model.predict(images);
-      drawBoundingBox(canvas, boundingBoxArray, out.dataSync());
+      out.print();  // DEBUG
+      drawBoundingBox(canvas, boundingBoxArray, out.dataSync().slice(1));
     });
   });
-
-  // const model = await buildObjectDetectionModel();
-  // console.log('model.outputs[0].shape:', model.outputs[0].shape);  // DEBUG
-
-  // const numTrainExamples = 32;
-  // const numValExamples = 20;
-
-  // const numCircles = 1;
-  // const numLines = 1;
-  // const {images: valImages, boundingBoxes: valBoundingBoxes} =
-  //     await generateExampleBatch(numValExamples, numCircles, numLines);
-
-  // const iterations = 50;
-
-  // // boundingBoxes.print();
-
-  // trainButton.addEventListener('click', async () => {
-  //   for (let i = 0; i < iterations; ++i) {
-  //     console.log(`iterations ${i + 1} / ${iterations}`);
-
-  //     const {images, boundingBoxes} =
-  //         await generateExampleBatch(numTrainExamples, numCircles, numLines);
-  //     let currentEpoch;
-  //     await model.fit(images, boundingBoxes, {
-  //       epochs: 1,
-  //       batchSize: 16,
-  //       validationData: [valImages, valBoundingBoxes],
-  //       callbacks: {
-  //         onEpochBegin: async (epoch) => {
-  //           currentEpoch = epoch;
-  //         },
-  //         onBatchEnd: async (batch, logs) => {
-  //           console.log(
-  //               `  Epoch ${currentEpoch}, batch ${batch}: ` +
-  //               `loss = ${logs.loss}`);
-  //         },
-  //         onEpochEnd: async (epoch, logs) => {
-  //           console.log(
-  //               `Epoch ${epoch}: loss = ${logs.loss}, ` +
-  //               `val_loss = ${logs.val_loss}`);
-  //         }
-  //       }
-  //     });
-  //     tf.dispose([images, boundingBoxes]);
-  //   }
-  // });
-  // TODO(cais): Do evaluate().
 }
 
 init();

@@ -23,7 +23,7 @@ require('@tensorflow/tfjs-node-gpu');
 
 global.fetch = fetch;
 
-const topLayerGroupName = 'conv_pw_7';
+const topLayerGroupName = 'conv_pw_11';
 const topLayerName = `${topLayerGroupName}_relu`;
 
 async function loadDecapitatedMobilenet() {
@@ -45,29 +45,62 @@ async function loadDecapitatedMobilenet() {
   return {decapitatedBase, fineTuningLayers};
 }
 
-async function buildObjectDetectionModel() {
-    const {decapitatedBase, fineTuningLayers} = await loadDecapitatedMobilenet();
-    // model.summary();  // DEBUG
-    console.log(decapitatedBase.inputs[0].shape);  // DEBUG    
-  
-    const newHead = tf.sequential();
-    newHead.add(tf.layers.flatten(
-        {inputShape: decapitatedBase.outputs[0].shape.slice(1)}));
-    // newHead.add(tf.layers.dropout({rate: 0.5}));
-    newHead.add(tf.layers.dense({units: 200, activation: 'relu'}));    
-    // newHead.add(tf.layers.dropout({rate: 0.25}));
-    newHead.add(tf.layers.dense({units: 4}));
-  
-    const newHeadOutput = newHead.apply(decapitatedBase.outputs[0]);
-    console.log('newHeadOutput.shape:', newHeadOutput.shape);
-  
-    const model =
-        tf.model({inputs: decapitatedBase.inputs, outputs: newHeadOutput});
+// const multiplier = tf.scalar(100);
 
-    // objDetectModel.summary();
-    console.log(model.outputs[0].shape);  // DEBUG
-    return {model, fineTuningLayers};
-  }
+function customLossFunction(yTrue, yPred) {
+  return tf.tidy(() => {
+    // const batchSize = yTrue.shape[0];
+    // const boundingBoxDims = yTrue.shape[1] - 1;
+    // TODO(cais): Use them.
+    // const classTrue = yTrue.slice([0, 0], [batchSize, 1]);
+    // const classPred = tf.sigmoid(yPred.slice([0, 0], [batchSize, 1]));
+    // classTrue.print();
+    // classPred.print();
+
+    // const boundingBoxTrue = yTrue.slice([0, 1], [batchSize, boundingBoxDims]);
+    // const boundingBoxPred = yPred.slice([0, 1], [batchSize, boundingBoxDims]);
+    // const boundingBoxLoss =
+    //     tf.metrics.meanAbsoluteError(boundingBoxTrue, boundingBoxPred);
+    // return boundingBoxLoss;
+    // return tf.metrics.meanAbsoluteError(yTrue, yPred);
+    return tf.metrics.meanSquaredError(yTrue, yPred);
+  });
+}
+
+async function buildObjectDetectionModel() {
+  const {decapitatedBase, fineTuningLayers} = await loadDecapitatedMobilenet();
+  // model.summary();  // DEBUG
+  console.log(decapitatedBase.inputs[0].shape);  // DEBUG
+
+  // newHead.add(tf.layers.dropout({rate: 0.5}));
+  // newHead.add(tf.layers.dropout({rate: 0.25}));
+
+  //   let y = decapitatedBase.outputs[0];
+  //   y = tf.layers.flatten({inputShape:
+  //   decapitatedBase.outputs[0].shape.slice(1)})
+  //           .apply(y);
+  //   y = tf.layers.dense({units: 200, activation: 'relu'}).apply(y);
+  //   const zShape =
+  //       tf.layers.dense({units: 1, activation: 'sigmoid', name: 'shapeOut'})
+  //           .apply(y);
+  //   const zBoundingBox = tf.layers.dense({units: 4, name:
+  //   'boundsOut'}).apply(y); const model = tf.model(
+  //       {inputs: decapitatedBase.inputs, outputs: [zShape, zBoundingBox]});
+//   console.log(model.outputs[0].shape);  // DEBUG
+//   console.log(model.outputs[1].shape);  // DEBUG
+
+  const newHead = tf.sequential();
+  newHead.add(tf.layers.flatten(
+      {inputShape: decapitatedBase.outputs[0].shape.slice(1)}));
+  newHead.add(tf.layers.dense({
+      units: 200, activation: 'relu', kernelInitializer: 'leCunNormal'}));
+  newHead.add(tf.layers.dense({units: 5, kernelInitializer: 'leCunNormal'}));
+  const newOutput = newHead.apply(decapitatedBase.outputs[0]);
+  const model = tf.model({inputs: decapitatedBase.inputs, outputs: newOutput});
+
+  // objDetectModel.summary();
+  return {model, fineTuningLayers};
+}
 
 (async function main() {
   const canvasSize = 224;
@@ -75,8 +108,8 @@ async function buildObjectDetectionModel() {
   const numCircles = 10;
   const numLines = 10;
   const batchSize = 128;
-  const initialTransferEpochs = 40;
-  const fineTuningEpochs = 40;
+  const initialTransferEpochs = 50;
+  const fineTuningEpochs = 100;
 
   const synthDataCanvas = canvas.createCanvas(canvasSize, canvasSize);
   console.log(tf.version);  // DEBUG
@@ -84,47 +117,57 @@ async function buildObjectDetectionModel() {
   console.log(`Generating ${numExamples} training examples...`);  // DEBUG
   const synth =
       new synthesizer.ObjectDetectionDataSynthesizer(synthDataCanvas, tf);
-  const {images, boundingBoxes} = await synth.generateExampleBatch(
-      numExamples, numCircles, numLines);
+  const {images, targets} =
+      await synth.generateExampleBatch(numExamples, numCircles, numLines);
 
-// DEBUG 
-//   const slice = images.unstack()[numExamples -1].transpose([2, 0, 1]).unstack()[0];
-//   const sliceData = slice.dataSync();
-//   let str = ''
-//   for (let i = 0; i < sliceData.length; ++i) {
-//     if (i % canvasSize === 0) {
-//       str += '\n';
-//     }
-//     str += sliceData[i] + ',';
-//   }
-//   console.log(str);
-//   boundingBoxes.print();
-// ~DEBUG
+  //   const shapeTargets = targets.slice([0, 0], [numExamples, 1]);
+  //   const boundingBoxTargets = targets.slice([0, 1], [numExamples, 4]);
+  //   console.log(targets.shape);             // DEBUG
+  //   console.log(shapeTargets.shape);        // DEBUG
+  //   console.log(boundingBoxTargets.shape);  // DEBUG
+
   const {model, fineTuningLayers} = await buildObjectDetectionModel();
-  model.compile({loss: 'meanSquaredError', optimizer: 'rmsprop'});
-  console.log('fineTuningLayers.length:', fineTuningLayers.length);  // DEBUG
+  //   model.compile({
+  //     loss: ['binaryCrossentropy', 'meanAbsoluteError'],
+  //     optimizer: 'rmsprop'
+  //   });
+  model.compile({loss: customLossFunction, optimizer: 'adam'});
+  //  tf.train.adam(5e-2)
   model.summary();
-  
-  await model.fit(images, boundingBoxes, {
+
+  //   await model.fit(images, [shapeTargets, boundingBoxTargets], {
+  //     epochs: initialTransferEpochs,
+  //     batchSize,
+  //     validationSplit: 0.15,
+  //   });
+  await model.fit(images, targets, {
     epochs: initialTransferEpochs,
     batchSize,
     validationSplit: 0.15,
   });
 
   // Unfreeze layers for fine-tuning.
-  for (const layer of fineTuningLayers) {
-    layer.trainable = true;
-  }
-  model.compile({loss: 'meanSquaredError', optimizer: 'rmsprop'});
-  model.summary();
+    for (const layer of fineTuningLayers) {
+      layer.trainable = true;
+    }
+    // model.compile({
+    //   loss: ['binaryCrossentropy', 'meanAbsoluteError'],
+    //   optimizer: 'rmsprop'
+    // });
+    model.compile({
+      loss: customLossFunction,
+      optimizer: 'adam'
+    });
+    //  tf.train.adam(5e-2)
+    model.summary();
 
-  // Do fine-tuning.
-  await model.fit(images, boundingBoxes, {
-    epochs: fineTuningEpochs,
-    batchSize,
-    validationSplit: 0.15,
-  });
+    // Do fine-tuning.
+    await model.fit(images, targets, {
+      epochs: fineTuningEpochs,
+      batchSize,
+      validationSplit: 0.15,
+    });
 
-  // Save model.
-  await model.save('file://./dist/object_detection_model');
+    // Save model.
+    await model.save('file://./dist/object_detection_model');
 })();
