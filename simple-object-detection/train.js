@@ -15,6 +15,9 @@
  * =============================================================================
  */
 
+const fs = require('fs');
+const path = require('path');
+
 const canvas = require('canvas');
 const tf = require('@tensorflow/tfjs');
 const synthesizer = require('./synthetic_images');
@@ -24,13 +27,13 @@ require('@tensorflow/tfjs-node-gpu');
 global.fetch = fetch;
 
 // Name prefixes of layers that will be unfrozen during fine-tuning.
-const topLayerGroupNames = ['conv_pw_10', 'conv_pw_11'];
+const topLayerGroupNames = ['conv_pw_9', 'conv_pw_10', 'conv_pw_11'];
 
 // Name of the layer that will become the top layer of the decapitated base.
 const topLayerName =
     `${topLayerGroupNames[topLayerGroupNames.length - 1]}_relu`;
 
-const classLossMultiplier = tf.scalar(1000);
+const classLossMultiplier = tf.scalar(100);
 
 /**
  * Custom loss function for object detection.
@@ -71,7 +74,7 @@ function customLossFunction(yTrue, yPred) {
 
 /**
  * Loads MobileNet and removes the top part.
- * 
+ *
  * Also gets handles to the layers that will be unfrozen during the fine-tuning
  * phase of the training.
  */
@@ -121,15 +124,17 @@ async function buildObjectDetectionModel() {
 }
 
 (async function main() {
+  // Data-related settings.
   const canvasSize = 224;  // Matches the input size of MobileNet.
-  const numExamples = 5000;
-  const validationSplit = 0.15;
   const numCircles = 10;
   const numLines = 10;
+  const numExamples = 5000;
 
+  // Traininng related settings.
+  const validationSplit = 0.15;
   const batchSize = 128;
-  const initialTransferEpochs = 50;
-  const fineTuningEpochs = 100;
+  const initialTransferEpochs = 100;
+  const fineTuningEpochs = 200;
   const modelSaveURL = 'file://./dist/object_detection_model';
 
   console.log(`Generating ${numExamples} training examples...`);
@@ -178,3 +183,4 @@ async function buildObjectDetectionModel() {
       `\nNext, run the following command to test the model in the browser:`);
   console.log(`\n  yarn watch`);
 })();
+
