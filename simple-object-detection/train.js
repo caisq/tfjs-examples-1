@@ -122,7 +122,7 @@ async function buildObjectDetectionModel() {
 
 (async function main() {
   const canvasSize = 224;  // Matches the input size of MobileNet.
-  const numExamples = 10000;
+  const numExamples = 5000;
   const validationSplit = 0.15;
   const numCircles = 10;
   const numLines = 10;
@@ -140,7 +140,7 @@ async function buildObjectDetectionModel() {
       await synth.generateExampleBatch(numExamples, numCircles, numLines);
 
   const {model, fineTuningLayers} = await buildObjectDetectionModel();
-  model.compile({loss: customLossFunction, optimizer: 'rmsprop'});
+  model.compile({loss: customLossFunction, optimizer: tf.train.rmsprop(5e-3)});
   model.summary();
 
   // Initial phase of transfer learning.
@@ -155,7 +155,7 @@ async function buildObjectDetectionModel() {
   for (const layer of fineTuningLayers) {
     layer.trainable = true;
   }
-  model.compile({loss: customLossFunction, optimizer: 'rmsprop'});
+  model.compile({loss: customLossFunction, optimizer: tf.train.rmsprop(2e-3)});
   model.summary();
 
   // Do fine-tuning.
@@ -166,9 +166,15 @@ async function buildObjectDetectionModel() {
   });
 
   // Save model.
+  // First make sure that the base directory dists.
+  const modelSavePath = modelSaveURL.replace('file://', '');
+  const dirName = path.dirname(modelSavePath);
+  if (!fs.existsSync(dirName)) {
+    fs.mkdirSync(dirName);
+  }
   await model.save(modelSaveURL);
   console.log(`Trained model is saved to ${modelSaveURL}`);
   console.log(
       `\nNext, run the following command to test the model in the browser:`);
-  console.log(`yarn watch`);
+  console.log(`\n  yarn watch`);
 })();
