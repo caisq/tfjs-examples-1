@@ -32,8 +32,18 @@ const METADATA_TEMPLATE_URL =
 
 const PAD_CHAR = 0;
 const OOV_CHAR = 2;
-const INDEX_FROM = 3;
 
+/**
+ * Load IMDB data features from a local file.
+ *
+ * @param {string} filePath Data file on local filesystem.
+ * @param {string} numWords Number of words in the vocabulary. Word indices
+ *   that exceed this limit will be marked as `OOV_CHAR`.
+ * @param {string} maxLen Length of each sequence. Longer sequences will be
+ *   pre-truncated; shorter ones will be pre-padded.
+ * @return {tf.Tensor} The dataset represented as a 2D `tf.Tensor` of shape
+ *   `[]` and dtype `int32` .
+ */
 function loadFeatures(filePath, numWords, maxLen) {
   const buffer = fs.readFileSync(filePath);
   const numBytes = buffer.byteLength;
@@ -76,6 +86,12 @@ function loadTargets(filePath) {
   return tf.tensor2d(ys, [ys.length, 1], 'float32');
 }
 
+/**
+ * Get a file by downloading it if necessary.
+ *
+ * @param {string} sourceURL URL to download the file from.
+ * @param {string} destPath Destination file path on local filesystem.
+ */
 async function maybeDownload(sourceURL, destPath) {
   return new Promise(async (resolve, reject) => {
     if (!fs.existsSync(destPath) || fs.lstatSync(destPath).size === 0) {
@@ -98,6 +114,14 @@ async function maybeDownload(sourceURL, destPath) {
   });
 }
 
+/**
+ * Get extracted files.
+ *
+ * If the files are already extracted, this will be a no-op.
+ *
+ * @param {string} sourcePath Source zip file path.
+ * @param {string} destDir Extraction destination directory.
+ */
 async function maybeExtract(sourcePath, destDir) {
   return new Promise((resolve, reject) => {
     if (fs.existsSync(destDir)) {
@@ -114,6 +138,12 @@ async function maybeExtract(sourcePath, destDir) {
   });
 }
 
+/**
+ * Get the IMDB data through file downloading and extraction.
+ *
+ * If the files already exist on the local file system, the download and/or
+ * extraction steps will be skipped.
+ */
 async function maybeDownloadAndExtract() {
   const zipDownloadDest = path.join(os.tmpdir(), path.basename(DATA_ZIP_URL));
   await maybeDownload(DATA_ZIP_URL, zipDownloadDest);
@@ -123,6 +153,20 @@ async function maybeDownloadAndExtract() {
   return zipExtractDir;
 }
 
+/**
+ * Load data by downloading and extracting files if necessary.
+ *
+ * @param {number} numWords Number of words to in the vocabulary.
+ * @param {number} len Length of each sequence. Longer sequences will
+ *   be pre-truncated and shorter ones will be pre-padded.
+ * @return
+ *   xTrain: Training data as a `tf.Tensor` of shape
+ *     `[numExamples, len]` and `int32` dtype.
+ *   yTrain: Targets for the training data, as a `tf.Tensor` of
+ *     `[numExamples, 1]` and `float32` dtype. The values are 0 or 1.
+ *   xTest: The same as `xTrain`, but for the test dataset.
+ *   yTest: The same as `yTrain`, but for the test dataset.
+ */
 export async function loadData(numWords, len) {
   const dataDir = await maybeDownloadAndExtract();
 
@@ -144,6 +188,11 @@ export async function loadData(numWords, len) {
   return {xTrain, yTrain, xTest, yTest};
 }
 
+/**
+ * Load a metadata template by downloading and extracting files if necessary.
+ *
+ * @return A JSON object that is the metadata template.
+ */
 export async function loadMetadataTemplate() {
   const baseName = path.basename(METADATA_TEMPLATE_URL);
   const zipDownloadDest = path.join(os.tmpdir(), baseName);
