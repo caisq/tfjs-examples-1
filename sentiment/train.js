@@ -17,8 +17,11 @@
 
 import * as tf from '@tensorflow/tfjs';
 import {ArgumentParser} from 'argparse';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as shelljs from 'shelljs';
 
-import {loadData} from './data';  // DEBUG
+import {loadData, loadMetadataTemplate} from './data';
 
 /**
  * Create a model for IMDB sentiment analysis.
@@ -108,7 +111,7 @@ function parseArguments() {
   });
   parser.addArgument('--modelSaveDir', {
     type: 'string',
-    defaultValue: null,
+    defaultValue: 'dist/resources',
     help: 'Optional path for model saving.'
   });
   return parser.parseArgs();
@@ -126,7 +129,6 @@ async function main() {
   }
 
   console.log('Loading data...');
-  console.log(`maxLen = ${args.maxLen}`);  // DEBUG
   const {xTrain, yTrain, xTest, yTest} =
       await loadData(args.numWords, args.maxLen);
 
@@ -156,6 +158,25 @@ async function main() {
 
   // Save model.
   if (args.modelSaveDir != null && args.modelSaveDir.length > 0) {
+    // Create base directory first.
+    shelljs.mkdir('-p', args.modelSaveDir);
+
+    // Load metadata template.
+    console.log('Loading metadata template...');
+    const metadata = await loadMetadataTemplate();
+
+    // Save metadata.
+    metadata.epochs = args.epochs;
+    metadata.embedding_size = args.embeddingSize;
+    metadata.max_len = args.maxLen;
+    metadata.model_type = args.modelType;
+    metadata.batch_size = args.batchSize;
+    metadata.vocabulary_size = args.numWords;
+    const metadataPath = path.join(args.modelSaveDir, 'metadata.json');
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata));
+    console.log(`Saved metadata to ${metadataPath}`);
+
+    // Save model artifacts.
     await model.save(`file://${args.modelSaveDir}`);
     console.log(`Saved model to ${args.modelSaveDir}`);
   }
