@@ -65,7 +65,7 @@ describe('SnakeGame', () => {
     // nondeterministic testing failures.
     for (let i = 0; i < 40; ++i) {
       const game = new SnakeGame({height: 4, width: 4, initLen: 2});
-      const {s, f} = game.getState();
+      const {s, f} = game.getState()[0];
       expect(s).toEqual(game.snakeSquares_);
       expect(f).toEqual(game.fruitSquares_);
       expect(s.length).toBeGreaterThanOrEqual(2);
@@ -105,7 +105,7 @@ describe('SnakeGame', () => {
         numFruits: 2
       });
 
-      const {s, f} = game.getState();
+      const {s, f} = game.getState()[0];
       expect(s).toEqual(game.snakeSquares_);
       expect(f).toEqual(game.fruitSquares_);
       expect(s.length).toBeGreaterThanOrEqual(2);
@@ -309,16 +309,46 @@ describe('SnakeGame', () => {
     expect(s.length).toEqual(3);
     expect(f.length).toEqual(1);
   });
+
+  it('stateFrames = 3; step: fruit eaten', () => {
+    const game = new SnakeGame({height: 5, width: 5, initLen: 4, stateFrames: 3});
+    game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
+    game.fruitSquares_ = [[1, 3]];
+    game.resetStateMemory_();
+    game.pushToStateMemory_();
+
+    const state1 = game.getState();
+    expect(state1.length).toEqual(3);
+    expect(state1[0].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
+    expect(state1[0].f).toEqual([[1, 3]]);
+    expect(state1[1].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
+    expect(state1[1].f).toEqual([[1, 3]]);
+    expect(state1[2].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
+    expect(state1[2].f).toEqual([[1, 3]]);
+
+    const {reward, done} = game.step(ACTION_UP);
+    expect(reward).toEqual(FRUIT_REWARD);
+    expect(done).toEqual(false);
+    const state2 = game.getState();
+    expect(state2.length).toEqual(3);
+    expect(state2[0].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
+    expect(state2[0].f).toEqual([[1, 3]]);
+    expect(state2[1].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
+    expect(state2[1].f).toEqual([[1, 3]]);
+    expect(state2[2].s).toEqual([[1, 3], [2, 3], [3, 3], [3, 4], [2, 4]]);
+    // New fruit location.
+    expect(state2[2].f.length).toEqual(1);
+  });
 });
 
 describe('getStateTensor', () => {
-  it('1 fruit', () => {
+  it('1 frame, 1 fruit', () => {
     const h = 4;
     const w = 4;
-    const state = {
+    const state = [{
       s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [2, 1]],
       f: [[2, 2]]
-    };
+    }];
     const tensor = getStateTensor(state, h, w);
     expect(tensor.shape).toEqual([1, 4, 4, 2]);
     expect(tensor.dtype).toEqual('float32');
@@ -336,13 +366,51 @@ describe('getStateTensor', () => {
        [0, 0, 0, 0]]));
   });
 
-  it('2 fruits', () => {
+  it('2 frames, 1 fruit', () => {
+    const h = 4;
+    const w = 4;
+    const state = [{
+      s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [2, 1]],
+      f: [[2, 2]]
+    }, {
+      s: [[0, 1], [0, 0], [1, 0], [2, 0], [3, 0], [3, 1]],
+      f: [[3, 3]]
+    }];
+    const tensor = getStateTensor(state, h, w);
+    expect(tensor.shape).toEqual([1, 4, 4, 4]);
+    expect(tensor.dtype).toEqual('float32');
+    const [snakeTensorFrame1, fruitTensorFrame1,
+           snakeTensorFrame2, fruitTensorFrame2] = tensor.squeeze(0).unstack(-1);
+
+    expectArraysClose(snakeTensorFrame1, tf.tensor2d(
+      [[2, 0, 0, 0],
+       [1, 0, 0, 0],
+       [1, 1, 0, 0],
+       [1, 1, 0, 0]]));
+    expectArraysClose(fruitTensorFrame1, tf.tensor2d(
+      [[0, 0, 0, 0],
+       [0, 0, 0, 0],
+       [0, 0, 1, 0],
+       [0, 0, 0, 0]]));
+    expectArraysClose(snakeTensorFrame2, tf.tensor2d(
+      [[1, 2, 0, 0],
+       [1, 0, 0, 0],
+       [1, 0, 0, 0],
+       [1, 1, 0, 0]]));
+    expectArraysClose(fruitTensorFrame2, tf.tensor2d(
+      [[0, 0, 0, 0],
+       [0, 0, 0, 0],
+       [0, 0, 0, 0],
+       [0, 0, 0, 1]]));
+  });
+
+  it('1 frame, 2 fruits', () => {
     const h = 5;
     const w = 5;
-    const state = {
+    const state = [{
       s: [[4, 2], [4, 1], [4, 0], [3, 0], [2, 0], [2, 1], [2, 2]],
       f: [[4, 4], [0, 0]]
-    };
+    }];
     const tensor = getStateTensor([state], h, w);
     expect(tensor.shape).toEqual([1, 5, 5, 2]);
     expect(tensor.dtype).toEqual('float32');
@@ -362,17 +430,17 @@ describe('getStateTensor', () => {
        [0, 0, 0, 0, 1]]));
   });
 
-  it('2 examples, both defined', () => {
+  it('2 examples, 1 frame, both defined', () => {
     const h = 4;
     const w = 4;
-    const state1 = {
+    const state1 = [{
       s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [2, 1]],
       f: [[2, 2]]
-    };
-    const state2 = {
+    }];
+    const state2 = [{
       s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1]],
       f: [[3, 3]]
-    };
+    }];
     const tensor = getStateTensor([state1, state2], h, w);
     expect(tensor.shape).toEqual([2, 4, 4, 2]);
 
@@ -401,11 +469,11 @@ describe('getStateTensor', () => {
   it('2 examples, one undefined', () => {
     const h = 4;
     const w = 4;
-    const state1 = undefined;
-    const state2 = {
+    const state1 = [undefined];
+    const state2 = [{
       s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1]],
       f: [[3, 3]]
-    };
+    }];
     const tensor = getStateTensor([state1, state2], h, w);
     expect(tensor.shape).toEqual([2, 4, 4, 2]);
 
@@ -421,5 +489,24 @@ describe('getStateTensor', () => {
        [0, 0, 0, 0],
        [0, 0, 0, 0],
        [0, 0, 0, 1]]));
+  });
+
+  it('2 example of mismatched numFrames', () => {
+    const h = 4;
+    const w = 4;
+    const state1 = [{
+      s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1]],
+      f: [[3, 3]]
+    }];
+    const state2 = [{
+      s: [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1]],
+      f: [[3, 3]]
+    }, {
+      s: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]],
+      f: [[3, 3]]
+    }];
+
+    expect(() => getStateTensor([state1, state2], h, w))
+        .toThrowError('Mismatch in number of frames: 2 vs 1');
   });
 });

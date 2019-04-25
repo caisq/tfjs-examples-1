@@ -42,7 +42,7 @@ describe('SnakeGameAgent', () => {
       expect(agent.cumulativeReward_).toEqual(0);
       let out = null;
       let outPrev = null;
-      for (let m = 0; m < 10; ++m) {
+      for (let m = 0; m < 10; ++m) {  // TODO(cais): Change back to 10.
         const currentState = agent.game.getState();
         out = agent.playStep();
         // Check the content of the replay buffer.
@@ -54,9 +54,12 @@ describe('SnakeGameAgent', () => {
         expect(agent.replayMemory.buffer[bufferIndex % 100][2]).toBeCloseTo(
             outPrev == null ? out.cumulativeReward :
             out.cumulativeReward - outPrev.cumulativeReward);
-        expect(agent.replayMemory.buffer[bufferIndex % 100][3]).toEqual(out.done);
-        expect(agent.replayMemory.buffer[bufferIndex % 100][4])
-            .toEqual(out.done ? undefined : agent.game.getState());
+        expect(agent.replayMemory.buffer[bufferIndex % 100][3])
+            .toEqual(out.done);
+        if (!out.done) {
+          expect(agent.replayMemory.buffer[bufferIndex % 100][4])
+              .toEqual(agent.game.getState());
+        }
         bufferIndex++;
         if (out.done) {
           break;
@@ -67,21 +70,23 @@ describe('SnakeGameAgent', () => {
     }
   });
 
-  it('trainOnReplayBatch', () => {
+  it('trainOnReplayBatch: stateFrames = 1', () => {
     const game = new SnakeGame({
       height: 9,
       width: 9,
       numFruits: 1,
       initLen: 2
     });
-    const replayBufferSize = 1000;
+    const replayBufferSize = 100;
     const agent = new SnakeGameAgent(game, {
       replayBufferSize,
       epsilonInit: 1,
       epsilonFinal: 0.1,
-      epsilonDecayFrames: 1000,
+      epsilonDecayFrames: 100,
       learningRate: 1e-2
     });
+    expect(agent.onlineNetwork.inputs[0].shape).toEqual([null, 9, 9, 2]);
+    expect(agent.targetNetwork.inputs[0].shape).toEqual([null, 9, 9, 2]);
 
     const oldOnlineWeights =
         agent.onlineNetwork.getWeights().map(x => x.dataSync());
@@ -92,7 +97,63 @@ describe('SnakeGameAgent', () => {
       agent.playStep();
     }
     // Burn-in run for memory leak check below.
-    const batchSize = 512;
+    const batchSize = 32;
+    const gamma = 0.99;
+    const optimizer = tf.train.adam();
+    agent.trainOnReplayBatch(batchSize, gamma, optimizer);
+
+    const numTensors0 = tf.memory().numTensors;
+    agent.trainOnReplayBatch(batchSize, gamma, optimizer);
+    expect(tf.memory().numTensors).toEqual(numTensors0);
+
+    const newOnlineWeights =
+        agent.onlineNetwork.getWeights().map(x => x.dataSync());
+    const newTargetWeights =
+        agent.targetNetwork.getWeights().map(x => x.dataSync());
+
+    // Verify that the online network's weights are updated.
+    for (let i = 0; i < oldOnlineWeights.length; ++i) {
+      expect(tf.tensor1d(newOnlineWeights[i])
+          .sub(tf.tensor1d(oldOnlineWeights[i]))
+          .abs().max().arraySync()).toBeGreaterThan(0);
+    }
+    // Verify that the target network's weights have not changed.
+    for (let i = 0; i < oldOnlineWeights.length; ++i) {
+      expect(tf.tensor1d(newTargetWeights[i])
+          .sub(tf.tensor1d(oldTargetWeights[i]))
+          .abs().max().arraySync()).toEqual(0);
+    }
+  });
+
+  it('trainOnReplayBatch: stateFrames = 2', () => {
+    const game = new SnakeGame({
+      height: 9,
+      width: 9,
+      numFruits: 1,
+      initLen: 2,
+      stateFrames: 2
+    });
+    const replayBufferSize = 1000;
+    const agent = new SnakeGameAgent(game, {
+      replayBufferSize,
+      epsilonInit: 1,
+      epsilonFinal: 0.1,
+      epsilonDecayFrames: 1000,
+      learningRate: 1e-2
+    });
+    expect(agent.onlineNetwork.inputs[0].shape).toEqual([null, 9, 9, 4]);
+    expect(agent.targetNetwork.inputs[0].shape).toEqual([null, 9, 9, 4]);
+
+    const oldOnlineWeights =
+        agent.onlineNetwork.getWeights().map(x => x.dataSync());
+    const oldTargetWeights =
+        agent.targetNetwork.getWeights().map(x => x.dataSync());
+
+    for (let i = 0; i < replayBufferSize; ++i) {
+      agent.playStep();
+    }
+    // Burn-in run for memory leak check below.
+    const batchSize = 128;
     const gamma = 0.99;
     const optimizer = tf.train.adam();
     agent.trainOnReplayBatch(batchSize, gamma, optimizer);

@@ -24,7 +24,7 @@ describe('createDeepQNetwork', () => {
     const h = 9;
     const w = 9;
     const numActions = 4;
-    const model = createDeepQNetwork(h, w, numActions);
+    const model = createDeepQNetwork(h, w, 1, numActions);
 
     expect(model.inputs.length).toEqual(1);
     expect(model.inputs[0].shape).toEqual([null, h, w, 2]);
@@ -33,24 +33,24 @@ describe('createDeepQNetwork', () => {
   });
 
   it('Invalid h and/or w leads to Error', () => {
-    expect(() => createDeepQNetwork(0, 10, 4)).toThrowError(/height/);
-    expect(() => createDeepQNetwork('10', 10, 4)).toThrowError(/height/);
-    expect(() => createDeepQNetwork(null, 10, 4)).toThrowError(/height/);
-    expect(() => createDeepQNetwork(undefined, 10, 4)).toThrowError(/height/);
-    expect(() => createDeepQNetwork(10.8, 10, 4)).toThrowError(/height/);
-    expect(() => createDeepQNetwork(10, 0, 4)).toThrowError(/width/);
-    expect(() => createDeepQNetwork(10, '10', 4)).toThrowError(/width/);
-    expect(() => createDeepQNetwork(10, null, 4)).toThrowError(/width/);
+    expect(() => createDeepQNetwork(0, 10, 1, 4)).toThrowError(/height/);
+    expect(() => createDeepQNetwork('10', 10, 1, 4)).toThrowError(/height/);
+    expect(() => createDeepQNetwork(null, 10, 1, 4)).toThrowError(/height/);
+    expect(() => createDeepQNetwork(undefined, 10, 1, 4)).toThrowError(/height/);
+    expect(() => createDeepQNetwork(10.8, 10, 1, 4)).toThrowError(/height/);
+    expect(() => createDeepQNetwork(10, 0, 1, 4)).toThrowError(/width/);
+    expect(() => createDeepQNetwork(10, '10', 1, 4)).toThrowError(/width/);
+    expect(() => createDeepQNetwork(10, null, 1, 4)).toThrowError(/width/);
     expect(() => createDeepQNetwork(10, undefined, 4)).toThrowError(/width/);
-    expect(() => createDeepQNetwork(10, 10.8, 4)).toThrowError(/width/);
+    expect(() => createDeepQNetwork(10, 10.8, 1, 4)).toThrowError(/width/);
   });
 
   it('Invali numActions leads to Error', () => {
-    expect(() => createDeepQNetwork(10, 10, 0)).toThrowError(/numActions/);
-    expect(() => createDeepQNetwork(10, 10, 1)).toThrowError(/numActions/);
-    expect(() => createDeepQNetwork(10, 10, '4')).toThrowError(/numActions/);
-    expect(() => createDeepQNetwork(10, 10, null)).toThrowError(/numActions/);
-    expect(() => createDeepQNetwork(10, 10, undefined)).toThrowError(/numActions/);
+    expect(() => createDeepQNetwork(10, 10, 1, 0)).toThrowError(/numActions/);
+    expect(() => createDeepQNetwork(10, 10, 1, 1)).toThrowError(/numActions/);
+    expect(() => createDeepQNetwork(10, 10, 1, '4')).toThrowError(/numActions/);
+    expect(() => createDeepQNetwork(10, 10, 1, null)).toThrowError(/numActions/);
+    expect(() => createDeepQNetwork(10, 10, 1, undefined)).toThrowError(/numActions/);
   });
 });
 
@@ -59,8 +59,8 @@ describe('copyWeights', () => {
     const h = 9;
     const w = 9;
     const numActions = 4;
-    const onlineNetwork = createDeepQNetwork(h, w, numActions);
-    const targetNetwork = createDeepQNetwork(h, w, numActions);
+    const onlineNetwork = createDeepQNetwork(h, w, 1, numActions);
+    const targetNetwork = createDeepQNetwork(h, w, 1, numActions);
     onlineNetwork.compile({
       loss: 'meanSquaredError',
       optimizer: tf.train.sgd(0.1)

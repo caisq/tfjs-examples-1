@@ -17,12 +17,25 @@
 
 import * as tf from '@tensorflow/tfjs';
 
-export function createDeepQNetwork(h, w, numActions) {
+/**
+ * Create a Deep Q-Network (DQN) for the snake game.
+ *
+ * @param {number} h Height of the snake game board.
+ * @param {number} w Width of the snake game board.
+ * @param {number} stateFrames Number of the most recent frames included in the
+ *   game's state observation.
+ * @param {number} numActions Number of unique actions in the snake game.
+ * @return {tf.LayersModel} The created DQN.
+ */
+export function createDeepQNetwork(h, w, stateFrames, numActions) {
   if (!(Number.isInteger(h) && h > 0)) {
     throw new Error(`Expected height to be a positive integer, but got ${h}`);
   }
   if (!(Number.isInteger(w) && w > 0)) {
     throw new Error(`Expected width to be a positive integer, but got ${w}`);
+  }
+  if (!(Number.isInteger(stateFrames) && stateFrames > 0)) {
+    throw new Error(`Expected stateFrames to be a positive integer, but got ${w}`);
   }
   if (!(Number.isInteger(numActions) && numActions > 1)) {
     throw new Error(
@@ -36,7 +49,7 @@ export function createDeepQNetwork(h, w, numActions) {
     kernelSize: 3,
     strides: 1,
     activation: 'relu',
-    inputShape: [h, w, 2]
+    inputShape: [h, w, 2 * stateFrames]
   }));
   model.add(tf.layers.conv2d({
     filters: 256,

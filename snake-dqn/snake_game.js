@@ -23,6 +23,7 @@ const DEFAULT_HEIGHT = 16;
 const DEFAULT_WIDTH = 16;
 const DEFAULT_NUM_FRUITS = 1;
 const DEFAULT_INIT_LEN = 4;
+const DEFAULT_STATE_FRAMES = 1;
 
 // TODO(cais): Tune these parameters.
 export const NO_FRUIT_REWARD = -0.2;
@@ -57,6 +58,8 @@ export class SnakeGame {
    *   - numFruits {number} number of fruits present on the screen
    *     at any given step.
    *   - initLen {number} initial length of the snake.
+   *   - stateFrames {number} Number of the most recent frames to
+   *     include in the state observation (See `getState()`). Default: 1.
    */
   constructor(args) {
     if (args == null) {
@@ -85,6 +88,10 @@ export class SnakeGame {
     this.numFruits_ = args.numFruits;
     this.initLen_ = args.initLen;
 
+    this.stateFrames_ =
+        args.stateFrames == null ? DEFAULT_STATE_FRAMES : args.stateFrames;
+    assertPositiveInteger(this.stateFrames_);
+
     this.reset();
   }
 
@@ -98,7 +105,8 @@ export class SnakeGame {
     this.initializeSnake_();
     this.fruitSquares_ = null;
     this.makeFruits_();
-    return this.getState();
+    this.pushToStateMemory_();
+    return this.stateMemory_[this.stateMemory_.length - 1];
   }
 
   /**
@@ -159,7 +167,11 @@ export class SnakeGame {
     }
 
     if (done) {
-      return {reward: DEATH_REWARD, done};
+      return {
+        reward: DEATH_REWARD,
+        done,
+        state: this.getState()
+      };
     }
 
     // Update the position of the snake.
@@ -184,6 +196,7 @@ export class SnakeGame {
       this.snakeSquares_.pop();
     }
 
+    this.pushToStateMemory_();
     const state = this.getState();
     return {reward, state, done};
   }
@@ -254,6 +267,24 @@ export class SnakeGame {
     }
   }
 
+  pushToStateMemory_() {
+    if (this.stateMemory_ == null) {
+      this.resetStateMemory_();
+    }
+    this.stateMemory_.shift();
+    this.stateMemory_.push({
+      "s": this.snakeSquares_.slice(),
+      "f": this.fruitSquares_.slice()
+    });
+  }
+
+  resetStateMemory_() {
+    this.stateMemory_ = [];
+    for (let i = 0; i < this.stateFrames_; ++i) {
+      this.stateMemory_.push(null);
+    }
+  }
+
   get height() {
     return this.height_;
   }
@@ -262,10 +293,16 @@ export class SnakeGame {
     return this.width_;
   }
 
+  get stateFrames() {
+    return this.stateFrames_;
+  }
+
   /**
    * Get plain JavaScript representation of the game state.
    *
-   * @return An object with two keys:
+   * @return An array of objects, the length of which equal to the `stateFrames`
+   *   parameter provided during this `SnakeGame` object's construction.
+   *   Each object with two keys:
    *   - s: {Array<[number, number]>} representing the squares occupied by
    *        the snake. The array is ordered in such a way that the first
    *        element corresponds to the head of the snake and the last
@@ -274,22 +311,28 @@ export class SnakeGame {
    *        the fruit(s).
    */
   getState() {
-    return {
-      "s": this.snakeSquares_.slice(),
-      "f": this.fruitSquares_.slice()
+    const out = this.stateMemory_.slice();
+    for (let i = out.length - 2; i >= 0; --i) {
+      if (out[i] == null) {
+        out[i] = out[i + 1];
+      }
     }
+    return out;
   }
 }
 
 /**
  * Get the current state of the game as an image tensor.
  *
- * @param {object | object[]} state The state object as returned by
- *   `SnakeGame.getState()`, consisting of two keys: `s` for the snake and
- *   `f` for the fruit(s). Can also be an array of such state objects.
+ * @param {object[] | object[][]} state The state object as returned by
+ *   `SnakeGame.getState()`. An array of objects. Each object consists
+ *   of two keys: `s` for the snake and `f` for the fruit(s).
+ *   Can also be an array of such arrays. But if `state` is an array of
+ *   arrays, all the element arrays must have the same length (`numFrames`).
  * @param {number} h Height.
  * @param {number} w With.
- * @return {tf.Tensor} A tensor of shape [numExamples, height, width, 2] and
+ * @return {tf.Tensor} A tensor of shape
+ *   [numExamples, height, width, 2 * numFrames] and
  *   dtype 'float32'
  *   - The first channel uses 0-1-2 values to mark the snake.
  *     - 0 means an empty square.
@@ -300,28 +343,43 @@ export class SnakeGame {
  *     array of a single object. Otherwise, it will be equal to the length
  *     of the state-object array.
  */
-
 export function getStateTensor(state, h, w) {
-  if (!Array.isArray(state)) {
+  const isMultiple = Array.isArray(state) && Array.isArray(state[0]);
+  if (!isMultiple) {
     state = [state];
   }
   const numExamples = state.length;
+
+  // Determine the numFrames and make sure it's uniform across all
+  const numFrames = state[0].length;
+  for (let i = 1; i < numExamples; ++i) {
+    if (state[i] != null && state[i].length != numFrames) {
+      throw new Error(
+          `Mismatch in number of frames: ${state[i].length} vs ${numFrames}`);
+    }
+  }
+
   // TODO(cais): Maintain only a single buffer for efficiency.
-  const buffer = tf.buffer([numExamples, h, w, 2]);
+  const buffer = tf.buffer([numExamples, h, w, 2 * numFrames]);
 
   for (let n = 0; n < numExamples; ++n) {
     if (state[n] == null) {
       continue;
     }
-    // Mark the snake.
-    state[n].s.forEach((yx, i) => {
-      buffer.set(i === 0 ? 2 : 1, n, yx[0], yx[1], 0);
-    });
+    for (let m = 0; m < numFrames; ++m) {
+      if (state[n][m] == null || state[n][m].s == null) {
+        continue;
+      }
+      // Mark the snake.
+      state[n][m].s.forEach((yx, i) => {
+        buffer.set(i === 0 ? 2 : 1, n, yx[0], yx[1], m * 2);
+      });
 
-    // Mark the fruit(s).
-    state[n].f.forEach(yx => {
-      buffer.set(1, n, yx[0], yx[1], 1);
-    });
+      // Mark the fruit(s).
+      state[n][m].f.forEach(yx => {
+        buffer.set(1, n, yx[0], yx[1], m * 2 + 1);
+      });
+    }
   }
   return buffer.toTensor();
 }
