@@ -149,6 +149,11 @@ export function parseArguments() {
     defaultValue: 1,
     help: 'Number of fruits present on the board at any given time.'
   });
+  parser.addArgument('--stateFrames', {
+    type: 'int',
+    defaultValue: 8,
+    help: 'Number of frames to include in the game\'s state observation.'
+  });
   parser.addArgument('--initLen', {
     type: 'int',
     defaultValue: 2,
@@ -178,7 +183,7 @@ export function parseArguments() {
   });
   parser.addArgument('--epsilonDecayFrames', {
     type: 'int',
-    defaultValue: 2e5,
+    defaultValue: 1e5,
     help: 'Number of frames of game over which the value of epsilon ' +
     'decays from epsilonInit to epsilonFinal'
   });
@@ -206,7 +211,9 @@ export function parseArguments() {
   parser.addArgument('--savePath', {
     type: 'string',
     defaultValue: './models/dqn',
-    help: 'File path to which the online DQN will be saved after training.'
+    help: 'Directory path to which the online DQN will be saved. ' +
+    'The script will keep writing model with the best moving-aveage ' +
+    'cumulative reward to the directory.'
   });
   parser.addArgument('--logDir', {
     type: 'string',
@@ -229,7 +236,8 @@ async function main() {
     height: args.height,
     width: args.width,
     numFruits: args.numFruits,
-    initLen: args.initLen
+    initLen: args.initLen,
+    stateFrames: args.stateFrames
   });
   const agent = new SnakeGameAgent(game, {
     replayBufferSize: args.replayBufferSize,

@@ -31,7 +31,8 @@ export function renderSnakeGame(canvas, game, qValues) {
 
   ctx.clearRect(0, 0, width, height);
 
-  const state = game.getState();
+  const stateFrames = game.getState();
+  const state = stateFrames[stateFrames.length - 1];
 
   const gameWidth= game.width;
   const gameHeight = game.height;

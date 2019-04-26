@@ -115,7 +115,8 @@ async function initGame() {
     height: 9,
     width: 9,
     numFruits: 1,
-    initLen: 2
+    initLen: 2,
+    stateFrames: 2
   });
 
   // Warm up qNet.
@@ -149,6 +150,8 @@ async function initGame() {
 (async function() {
   try {
     qNet = await tf.loadLayersModel(LOCAL_MODEL_URL);
+    qNet.summary();  // DEBUG
+    console.log(qNet.inputs[0].shape);  // DEBUG
     loadHostedModelButton.textContent = `Loaded model from ${LOCAL_MODEL_URL}`;
     initGame();
     enableGameButtons();
