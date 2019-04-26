@@ -151,7 +151,7 @@ export function parseArguments() {
   });
   parser.addArgument('--stateFrames', {
     type: 'int',
-    defaultValue: 8,
+    defaultValue: 4,
     help: 'Number of frames to include in the game\'s state observation.'
   });
   parser.addArgument('--initLen', {

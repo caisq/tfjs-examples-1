@@ -17,7 +17,7 @@
 
 import * as tf from '@tensorflow/tfjs';
 
-import {ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP, FRUIT_REWARD, getRandomAction, getStateTensor, NO_FRUIT_REWARD, SnakeGame, DEATH_REWARD} from "./snake_game";
+import {ACTION_GO_STRAIGHT, ACTION_TURN_LEFT, ACTION_TURN_RIGHT, FRUIT_REWARD, getRandomAction, getStateTensor, NO_FRUIT_REWARD, SnakeGame, DEATH_REWARD} from "./snake_game";
 import {expectArraysClose} from "@tensorflow/tfjs-core/dist/test_util";
 
 describe('getRandomAction', () => {
@@ -25,7 +25,7 @@ describe('getRandomAction', () => {
     for (let i = 0; i < 40; ++i) {
       const action = getRandomAction();
       expect(
-          [ACTION_LEFT, ACTION_UP, ACTION_RIGHT, ACTION_DOWN].indexOf(action))
+          [ACTION_GO_STRAIGHT, ACTION_TURN_LEFT, ACTION_TURN_RIGHT].indexOf(action))
           .not.toEqual(-1);
     }
   });
@@ -146,7 +146,7 @@ describe('SnakeGame', () => {
     game.snakeSquares_ = [[4, 1], [4, 0]];
     game.fruitSquares_ = [[0, 4]];
 
-    let out = game.step(ACTION_RIGHT);
+    let out = game.step(ACTION_GO_STRAIGHT);
     let reward = out.reward;
     let done = out.done;
     expect(reward).toEqual(NO_FRUIT_REWARD);
@@ -154,7 +154,7 @@ describe('SnakeGame', () => {
     expect(game.snakeSquares_).toEqual([[4, 2], [4, 1]]);
     expect(game.fruitSquares_).toEqual([[0, 4]]);
 
-    out = game.step(ACTION_UP);
+    out = game.step(ACTION_TURN_LEFT);
     reward = out.reward;
     done = out.done;
     expect(reward).toEqual(NO_FRUIT_REWARD);
@@ -162,7 +162,7 @@ describe('SnakeGame', () => {
     expect(game.snakeSquares_).toEqual([[3, 2], [4, 2]]);
     expect(game.fruitSquares_).toEqual([[0, 4]]);
 
-    out = game.step(ACTION_RIGHT);
+    out = game.step(ACTION_TURN_RIGHT);
     reward = out.reward;
     done = out.done;
     expect(reward).toEqual(NO_FRUIT_REWARD);
@@ -170,7 +170,7 @@ describe('SnakeGame', () => {
     expect(game.snakeSquares_).toEqual([[3, 3], [3, 2]]);
     expect(game.fruitSquares_).toEqual([[0, 4]]);
 
-    out = game.step(ACTION_DOWN);
+    out = game.step(ACTION_TURN_RIGHT);
     reward = out.reward;
     done = out.done;
     expect(reward).toEqual(NO_FRUIT_REWARD);
@@ -185,7 +185,7 @@ describe('SnakeGame', () => {
     game.snakeSquares_ = [[4, 0], [4, 1]];
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_LEFT);
+    const {reward, done} = game.step(ACTION_GO_STRAIGHT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
   });
@@ -193,9 +193,10 @@ describe('SnakeGame', () => {
   it('step: goes off top edge of board', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 2});
     game.snakeSquares_ = [[0, 0], [1, 0]];
+    game.snakeDirection_ = 'u';
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_UP);
+    const {reward, done} = game.step(ACTION_GO_STRAIGHT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
   });
@@ -205,7 +206,7 @@ describe('SnakeGame', () => {
     game.snakeSquares_ = [[3, 4], [3, 3]];
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_RIGHT);
+    const {reward, done} = game.step(ACTION_GO_STRAIGHT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
   });
@@ -213,9 +214,10 @@ describe('SnakeGame', () => {
   it('step: goes off bottom edge of board', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 2});
     game.snakeSquares_ = [[4, 2], [4, 3]];
+    game.snakeDirection_ = 'l';
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_DOWN);
+    const {reward, done} = game.step(ACTION_TURN_LEFT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
   });
@@ -223,19 +225,10 @@ describe('SnakeGame', () => {
   it('step: bumps into own body 1', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 4});
     game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
+    game.snakeDirection_ = 'u';
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_RIGHT);
-    expect(reward).toEqual(DEATH_REWARD);
-    expect(done).toEqual(true);
-  });
-
-  it('step: bumps into own body 2', () => {
-    const game = new SnakeGame({height: 5, width: 5, initLen: 4});
-    game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
-    game.fruitSquares_ = [[0, 4]];
-
-    const {reward, done} = game.step(ACTION_DOWN);
+    const {reward, done} = game.step(ACTION_TURN_RIGHT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
   });
@@ -243,9 +236,10 @@ describe('SnakeGame', () => {
   it('step: fruit eaten', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 4});
     game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
+    game.snakeDirection_ = 'u';
     game.fruitSquares_ = [[1, 3]];
 
-    const {reward, done} = game.step(ACTION_UP);
+    const {reward, done} = game.step(ACTION_GO_STRAIGHT);
     expect(reward).toEqual(FRUIT_REWARD);
     expect(done).toEqual(false);
     // The snake ate a fruit. Its length should grow from 4 to 5.
@@ -264,9 +258,10 @@ describe('SnakeGame', () => {
   it('reset after game over', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 4});
     game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
+    game.snakeDirection_ = 'u';
     game.fruitSquares_ = [[0, 4]];
 
-    const {reward, done} = game.step(ACTION_RIGHT);
+    const {reward, done} = game.step(ACTION_TURN_RIGHT);
     expect(reward).toEqual(DEATH_REWARD);
     expect(done).toEqual(true);
 
@@ -277,7 +272,7 @@ describe('SnakeGame', () => {
     // Find a valid direction to step in.
     // This works because the snake currently always starts from
     // a straight horizontal pose.
-    const action = headY > 0 ? ACTION_UP : ACTION_DOWN;
+    const action = headY > 0 ? ACTION_TURN_LEFT : ACTION_TURN_RIGHT;
     const out = game.step(action);
     expect(out.done).toEqual(false);
   });
@@ -287,21 +282,21 @@ describe('SnakeGame', () => {
     game.snakeSquares_ = [[1, 3], [1, 2], [1, 1]];
     game.fruitSquares_ = [[1, 4]];
 
-    let out = game.step(ACTION_RIGHT);
+    let out = game.step(ACTION_GO_STRAIGHT);
     expect(out.reward).toEqual(FRUIT_REWARD);
     expect(out.done).toEqual(false);
     expect(game.snakeSquares_).toEqual([[1, 4], [1, 3], [1, 2], [1, 1]]);
     expect(game.fruitSquares_.length).toEqual(1);
 
     game.fruitSquares_ = [[0, 4]];
-    out = game.step(ACTION_UP);
+    out = game.step(ACTION_TURN_LEFT);
     expect(out.reward).toEqual(FRUIT_REWARD);
     expect(out.done).toEqual(false);
     expect(game.snakeSquares_).toEqual(
         [[0, 4], [1, 4], [1, 3], [1, 2], [1, 1]]);
     expect(game.fruitSquares_.length).toEqual(1);
 
-    out = game.step(ACTION_UP);
+    out = game.step(ACTION_GO_STRAIGHT);
     expect(out.reward).toEqual(DEATH_REWARD);
     expect(out.done).toEqual(true);
 
@@ -313,6 +308,7 @@ describe('SnakeGame', () => {
   it('stateFrames = 3; step: fruit eaten', () => {
     const game = new SnakeGame({height: 5, width: 5, initLen: 4, stateFrames: 3});
     game.snakeSquares_ = [[2, 3], [3, 3], [3, 4], [2, 4]];
+    game.snakeDirection_ = 'u';
     game.fruitSquares_ = [[1, 3]];
     game.resetStateMemory_();
     game.pushToStateMemory_();
@@ -326,7 +322,7 @@ describe('SnakeGame', () => {
     expect(state1[2].s).toEqual([[2, 3], [3, 3], [3, 4], [2, 4]]);
     expect(state1[2].f).toEqual([[1, 3]]);
 
-    const {reward, done} = game.step(ACTION_UP);
+    const {reward, done} = game.step(ACTION_GO_STRAIGHT);
     expect(reward).toEqual(FRUIT_REWARD);
     expect(done).toEqual(false);
     const state2 = game.getState();

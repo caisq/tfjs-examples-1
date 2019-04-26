@@ -18,18 +18,18 @@
 import * as tf from '@tensorflow/tfjs-node';
 
 import {createDeepQNetwork, copyWeights} from "./dqn";
+import {NUM_ACTIONS} from './snake_game';
 
 describe('createDeepQNetwork', () => {
   it('createDeepQNetwork', () => {
     const h = 9;
     const w = 9;
-    const numActions = 4;
-    const model = createDeepQNetwork(h, w, 1, numActions);
+    const model = createDeepQNetwork(h, w, 1, NUM_ACTIONS);
 
     expect(model.inputs.length).toEqual(1);
     expect(model.inputs[0].shape).toEqual([null, h, w, 2]);
     expect(model.outputs.length).toEqual(1);
-    expect(model.outputs[0].shape).toEqual([null, numActions]);
+    expect(model.outputs[0].shape).toEqual([null, NUM_ACTIONS]);
   });
 
   it('Invalid h and/or w leads to Error', () => {
@@ -58,9 +58,8 @@ describe('copyWeights', () => {
   it('copyWeights', async () => {
     const h = 9;
     const w = 9;
-    const numActions = 4;
-    const onlineNetwork = createDeepQNetwork(h, w, 1, numActions);
-    const targetNetwork = createDeepQNetwork(h, w, 1, numActions);
+    const onlineNetwork = createDeepQNetwork(h, w, 1, NUM_ACTIONS);
+    const targetNetwork = createDeepQNetwork(h, w, 1, NUM_ACTIONS);
     onlineNetwork.compile({
       loss: 'meanSquaredError',
       optimizer: tf.train.sgd(0.1)
