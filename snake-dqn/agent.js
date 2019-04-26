@@ -134,16 +134,10 @@ export class SnakeGameAgent {
           batch.map(example => example[1]), 'int32');
       const qs = this.onlineNetwork.predict(
           stateTensor).mul(tf.oneHot(actionTensor, NUM_ACTIONS)).sum(-1);
-      // console.log(`stateTensor.shape = `, stateTensor.shape);  // DEBUG
 
       const rewardTensor = tf.tensor1d(batch.map(example => example[2]));
       const nextStateTensor = getStateTensor(
           batch.map(example => example[4]), this.game.height, this.game.width);
-      // if (nextStateTensor.shape[3] !== 2) {
-      //   console.log('mismatch!!!');  // DEBUG
-      //   console.log(batch.map(example => example[4]));  // DEBUG
-      // }
-      // console.log(`nextStateTensor.shape = `, nextStateTensor.shape);  // DEBUG
       const nextMaxQTensor =
           this.targetNetwork.predict(nextStateTensor).max(-1);
       const doneMask = tf.scalar(1).sub(
