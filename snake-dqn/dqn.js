@@ -49,7 +49,7 @@ export function createDeepQNetwork(h, w, stateFrames, numActions) {
     kernelSize: 3,
     strides: 1,
     activation: 'relu',
-    inputShape: [h, w, 2 * stateFrames]
+    inputShape: [h, w, stateFrames]
   }));
   model.add(tf.layers.conv2d({
     filters: 32,

@@ -392,7 +392,7 @@ export function getStateTensor(state, h, w) {
   }
 
   // TODO(cais): Maintain only a single buffer for efficiency.
-  const buffer = tf.buffer([numExamples, h, w, 2 * numFrames]);
+  const buffer = tf.buffer([numExamples, h, w, numFrames]);
 
   for (let n = 0; n < numExamples; ++n) {
     if (state[n] == null) {
@@ -404,12 +404,12 @@ export function getStateTensor(state, h, w) {
       }
       // Mark the snake.
       state[n][m].s.forEach((yx, i) => {
-        buffer.set(i === 0 ? 2 : 1, n, yx[0], yx[1], m * 2);
+        buffer.set(i === 0 ? 2 : 1, n, yx[0], yx[1], m);
       });
 
       // Mark the fruit(s).
       state[n][m].f.forEach(yx => {
-        buffer.set(1, n, yx[0], yx[1], m * 2 + 1);
+        buffer.set(3, n, yx[0], yx[1], m);
       });
     }
   }
