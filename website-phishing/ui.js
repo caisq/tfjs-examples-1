@@ -25,20 +25,22 @@ export function updateStatus(message) {
 export async function plotLosses(trainLogs) {
   return tfvis.show.history(
       document.getElementById('plotLoss'), trainLogs, ['loss', 'val_loss'], {
-        width: 450,
-        height: 320,
+        width: 450 * 2,
+        height: 320 * 2,
         xLabel: 'Epoch',
         yLabel: 'Loss',
+        fontSize: 20,
       });
 }
 
 export async function plotAccuracies(trainLogs) {
   tfvis.show.history(
       document.getElementById('plotAccuracy'), trainLogs, ['acc', 'val_acc'], {
-        width: 450,
-        height: 320,
+        width: 450 * 2,
+        height: 320 * 2,
         xLabel: 'Epoch',
         yLabel: 'Accuracy',
+        fontSize: 20,
       });
 }
 
@@ -73,8 +75,9 @@ export async function plotROC(fprs, tprs, epoch) {
       document.getElementById('rocCurve'),
       {values: rocValues, series: rocSeries},
       {
-        width: 450,
-        height: 320,
+        width: 450 * 2,
+        height: 320 * 2,
+        fontSize: 20,
       },
   );
 }

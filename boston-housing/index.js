@@ -71,7 +71,7 @@ export function multiLayerPerceptronRegressionModel1Hidden() {
   model.add(tf.layers.dense({
     inputShape: [bostonData.numFeatures],
     units: 50,
-    activation: 'sigmoid',
+    // activation: 'sigmoid',
     kernelInitializer: 'leCunNormal'
   }));
   model.add(tf.layers.dense({units: 1}));
@@ -146,7 +146,11 @@ export async function run(model, modelName, weightsIllustration) {
         await ui.updateModelStatus(
             `Epoch ${epoch + 1} of ${NUM_EPOCHS} completed.`, modelName);
         trainLogs.push(logs);
-        tfvis.show.history(container, trainLogs, ['loss', 'val_loss'])
+        tfvis.show.history(container, trainLogs, ['loss', 'val_loss'], {
+          width: 700,
+          height: 400,
+          fontSize: 18,
+        });
 
         if (weightsIllustration) {
           model.layers[0].getWeights()[0].data().then(kernelAsArr => {

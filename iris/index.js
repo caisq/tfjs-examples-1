@@ -72,8 +72,16 @@ async function trainModel(xTrain, yTrain, xTest, yTest) {
         ui.status(`Training model... Approximately ${
             secPerEpoch.toFixed(4)} seconds per epoch`)
         trainLogs.push(logs);
-        tfvis.show.history(lossContainer, trainLogs, ['loss', 'val_loss'])
-        tfvis.show.history(accContainer, trainLogs, ['acc', 'val_acc'])
+        tfvis.show.history(lossContainer, trainLogs, ['loss', 'val_loss'], {
+          width: 800,
+          height: 500,
+          fontSize: 20,
+        })
+        tfvis.show.history(accContainer, trainLogs, ['acc', 'val_acc'], {
+          width: 800,
+          height: 500,
+          fontSize: 20,
+        });
         calculateAndDrawConfusionMatrix(model, xTest, yTest);
       },
     }
@@ -127,8 +135,14 @@ async function calculateAndDrawConfusionMatrix(model, xTest, yTest) {
   const container = document.getElementById('confusion-matrix');
   tfvis.render.confusionMatrix(
       container,
-      {values: confMatrixData, labels: data.IRIS_CLASSES},
-      {shadeDiagonal: true},
+      {
+        values: confMatrixData,
+        tickLabels: data.IRIS_CLASSES,
+      },
+      {
+        shadeDiagonal: true,
+        fontSize: 20,
+      },
   );
 
   tf.dispose([preds, labels]);
